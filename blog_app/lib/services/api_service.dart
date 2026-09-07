@@ -56,14 +56,14 @@ class ApiService {
         .timeout(timeout);
     final body = _parseBody(res);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final List data = body is Map ? (body['data'] ?? body) : body;
-      if (data is List) {
-        return data.map((e) => Category.fromJson(e)).toList();
+      final dynamic raw = body is Map ? (body['data'] ?? body) : body;
+      if (raw is List) {
+        return raw.map((e) => Category.fromJson(e)).toList();
       }
       return [];
     }
     _handleError(res, body);
-    return [];
+    throw ApiException('Unreachable', res.statusCode);
   }
 
   Future<Category> createCategory({required String name, required String slug}) async {
@@ -92,12 +92,12 @@ class ApiService {
     final res = await http.get(uri, headers: _headers).timeout(timeout);
     final body = _parseBody(res);
     if (res.statusCode >= 200 && res.statusCode < 300) {
-      final List data = body is Map ? (body['data'] ?? body) : body;
-      if (data is List) return data.map((e) => Post.fromJson(e)).toList();
+      final dynamic raw = body is Map ? (body['data'] ?? body) : body;
+      if (raw is List) return raw.map((e) => Post.fromJson(e)).toList();
       return [];
     }
     _handleError(res, body);
-    return [];
+    throw ApiException('Unreachable', res.statusCode);
   }
 
   Future<Post> fetchPost(int id) async {
@@ -123,8 +123,8 @@ class ApiService {
     final payload = {
       'title': title,
       'content': content,
-      if (excerpt != null) 'excerpt': excerpt,
-      if (imageUrl != null) 'image_url': imageUrl,
+      if (excerpt != null && excerpt.isNotEmpty) 'excerpt': excerpt,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
       if (categoryId != null) 'category_id': categoryId,
     };
     final res = await http
@@ -150,8 +150,8 @@ class ApiService {
     final payload = {
       'title': title,
       'content': content,
-      if (excerpt != null) 'excerpt': excerpt,
-      if (imageUrl != null) 'image_url': imageUrl,
+      if (excerpt != null && excerpt.isNotEmpty) 'excerpt': excerpt,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
       if (categoryId != null) 'category_id': categoryId,
     };
     final res = await http
