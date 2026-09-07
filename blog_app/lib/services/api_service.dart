@@ -3,116 +3,150 @@ import 'package:http/http.dart' as http;
 import '../models/post.dart';
 import '../models/category.dart';
 
+// Class untuk error dari API
 class ApiException implements Exception {
   final String message;
   final int statusCode;
   ApiException(this.message, this.statusCode);
+
   @override
-  String toString() => 'ApiException($statusCode): $message';
+  String toString() {
+    return 'Error $statusCode: $message';
+  }
 }
 
 class ApiService {
-  // Ganti sesuai device:
-  // Android Emulator -> 10.0.2.2
-  // iOS Simulator / Web / Windows -> localhost
-  // HP Fisik -> IP LAN laptop, contoh: 192.168.1.10
+  // baseUrl = alamat backend
+  // kalau pakai emulator android pakai 10.0.2.2
+  // kalau pakai hp asli ganti dengan IP laptop
   static const String baseUrl = 'http://10.0.2.2:3000/api';
-  // static const String baseUrl = 'http://localhost:3000/api';
 
-  static const Duration timeout = Duration(seconds: 10);
-
-  Map<String, String> get _headers => {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      };
-
-  // Helper untuk parse response yang formatnya {status, data, message}
-  dynamic _parseBody(http.Response res) {
-    if (res.body.isEmpty) return null;
-    try {
-      return jsonDecode(res.body);
-    } catch (_) {
-      return res.body;
-    }
+  // header untuk request json
+  Map<String, String> get headers {
+    return {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
   }
 
-  void _handleError(http.Response res, dynamic body) {
-    String msg = 'Terjadi kesalahan';
-    if (body is Map && body['message'] != null) {
-      msg = body['message'].toString();
-    } else if (body is Map && body['errors'] != null) {
-      msg = body['errors'].toString();
-    } else if (res.body.isNotEmpty) {
-      msg = res.body;
-    }
-    throw ApiException(msg, res.statusCode);
-  }
+  // ============ CATEGORY ============
 
-  // ============ CATEGORIES ============
-
+  // ambil semua kategori
   Future<List<Category>> fetchCategories() async {
-    final res = await http
-        .get(Uri.parse('$baseUrl/categories'), headers: _headers)
-        .timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final dynamic raw = body is Map ? (body['data'] ?? body) : body;
-      if (raw is List) {
-        return raw.map((e) => Category.fromJson(e)).toList();
+    var url = Uri.parse('$baseUrl/categories');
+    var res = await http.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      var body = jsonDecode(res.body);
+      var raw = body['data'];
+      // kalau tidak ada key data, pakai body langsung
+      if (raw == null) {
+        raw = body;
       }
-      return [];
+
+      List<Category> list = [];
+      if (raw is List) {
+        for (var item in raw) {
+          list.add(Category.fromJson(item));
+        }
+      }
+      return list;
+    } else {
+      // kalau error
+      var body = jsonDecode(res.body);
+      String msg = 'Gagal ambil kategori';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
     }
-    _handleError(res, body);
-    throw ApiException('Unreachable', res.statusCode);
   }
 
+  // buat kategori baru
   Future<Category> createCategory({required String name, required String slug}) async {
-    final res = await http
-        .post(Uri.parse('$baseUrl/categories'),
-            headers: _headers, body: jsonEncode({'name': name, 'slug': slug}))
-        .timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode == 201 || res.statusCode == 200) {
-      final data = body is Map ? (body['data'] ?? body) : body;
+    var url = Uri.parse('$baseUrl/categories');
+    var bodyJson = jsonEncode({'name': name, 'slug': slug});
+    var res = await http.post(url, headers: headers, body: bodyJson);
+
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      var body = jsonDecode(res.body);
+      var data = body['data'];
+      if (data == null) {
+        data = body;
+      }
       return Category.fromJson(data);
+    } else {
+      var body = jsonDecode(res.body);
+      String msg = 'Gagal buat kategori';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
     }
-    _handleError(res, body);
-    throw ApiException('Gagal membuat kategori', res.statusCode);
   }
 
-  // ============ POSTS ============
+  // ============ POST ============
 
+  // ambil semua post, bisa filter search dan kategori
   Future<List<Post>> fetchPosts({String? search, int? categoryId}) async {
     var uri = Uri.parse('$baseUrl/posts');
-    final qp = <String, String>{};
-    if (search != null && search.isNotEmpty) qp['search'] = search;
-    if (categoryId != null) qp['category'] = categoryId.toString();
-    if (qp.isNotEmpty) uri = uri.replace(queryParameters: qp);
 
-    final res = await http.get(uri, headers: _headers).timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      final dynamic raw = body is Map ? (body['data'] ?? body) : body;
-      if (raw is List) return raw.map((e) => Post.fromJson(e)).toList();
-      return [];
+    // bikin query param kalau ada search atau kategori
+    Map<String, String> qp = {};
+    if (search != null && search.isNotEmpty) {
+      qp['search'] = search;
     }
-    _handleError(res, body);
-    throw ApiException('Unreachable', res.statusCode);
-  }
+    if (categoryId != null) {
+      qp['category'] = categoryId.toString();
+    }
+    if (qp.isNotEmpty) {
+      uri = uri.replace(queryParameters: qp);
+    }
 
-  Future<Post> fetchPost(int id) async {
-    final res = await http
-        .get(Uri.parse('$baseUrl/posts/$id'), headers: _headers)
-        .timeout(timeout);
-    final body = _parseBody(res);
+    var res = await http.get(uri, headers: headers);
+
     if (res.statusCode == 200) {
-      final data = body is Map ? (body['data'] ?? body) : body;
-      return Post.fromJson(data is Map<String, dynamic> ? data : (data as Map).cast<String, dynamic>());
+      var body = jsonDecode(res.body);
+      var raw = body['data'];
+      if (raw == null) {
+        raw = body;
+      }
+
+      List<Post> list = [];
+      if (raw is List) {
+        for (var item in raw) {
+          list.add(Post.fromJson(item));
+        }
+      }
+      return list;
+    } else {
+      var body = jsonDecode(res.body);
+      String msg = 'Gagal ambil post';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
     }
-    _handleError(res, body);
-    throw ApiException('Post tidak ditemukan', res.statusCode);
   }
 
+  // ambil 1 post berdasarkan id
+  Future<Post> fetchPost(int id) async {
+    var url = Uri.parse('$baseUrl/posts/$id');
+    var res = await http.get(url, headers: headers);
+
+    if (res.statusCode == 200) {
+      var body = jsonDecode(res.body);
+      var data = body['data'];
+      if (data == null) {
+        data = body;
+      }
+      return Post.fromJson(data);
+    } else {
+      throw ApiException('Post tidak ditemukan', res.statusCode);
+    }
+  }
+
+  // buat post baru
   Future<Post> createPost({
     required String title,
     required String content,
@@ -120,25 +154,43 @@ class ApiService {
     String? imageUrl,
     int? categoryId,
   }) async {
-    final payload = {
+    // Map untuk data yang dikirim
+    Map<String, dynamic> payload = {
       'title': title,
       'content': content,
-      if (excerpt != null && excerpt.isNotEmpty) 'excerpt': excerpt,
-      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
-      if (categoryId != null) 'category_id': categoryId,
     };
-    final res = await http
-        .post(Uri.parse('$baseUrl/posts'), headers: _headers, body: jsonEncode(payload))
-        .timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode == 201 || res.statusCode == 200) {
-      final data = body is Map ? (body['data'] ?? body) : body;
-      return Post.fromJson((data as Map).cast<String, dynamic>());
+    // hanya tambah kalau tidak kosong
+    if (excerpt != null && excerpt.isNotEmpty) {
+      payload['excerpt'] = excerpt;
     }
-    _handleError(res, body);
-    throw ApiException('Gagal membuat post', res.statusCode);
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      payload['image_url'] = imageUrl;
+    }
+    if (categoryId != null) {
+      payload['category_id'] = categoryId;
+    }
+
+    var url = Uri.parse('$baseUrl/posts');
+    var res = await http.post(url, headers: headers, body: jsonEncode(payload));
+
+    if (res.statusCode == 200 || res.statusCode == 201) {
+      var body = jsonDecode(res.body);
+      var data = body['data'];
+      if (data == null) {
+        data = body;
+      }
+      return Post.fromJson(data);
+    } else {
+      var body = jsonDecode(res.body);
+      String msg = 'Gagal buat post';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
+    }
   }
 
+  // update post
   Future<Post> updatePost(
     int id, {
     required String title,
@@ -147,31 +199,57 @@ class ApiService {
     String? imageUrl,
     int? categoryId,
   }) async {
-    final payload = {
+    Map<String, dynamic> payload = {
       'title': title,
       'content': content,
-      if (excerpt != null && excerpt.isNotEmpty) 'excerpt': excerpt,
-      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
-      if (categoryId != null) 'category_id': categoryId,
     };
-    final res = await http
-        .put(Uri.parse('$baseUrl/posts/$id'), headers: _headers, body: jsonEncode(payload))
-        .timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode == 200) {
-      final data = body is Map ? (body['data'] ?? body) : body;
-      return Post.fromJson((data as Map).cast<String, dynamic>());
+    if (excerpt != null && excerpt.isNotEmpty) {
+      payload['excerpt'] = excerpt;
     }
-    _handleError(res, body);
-    throw ApiException('Gagal update post', res.statusCode);
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      payload['image_url'] = imageUrl;
+    }
+    if (categoryId != null) {
+      payload['category_id'] = categoryId;
+    }
+
+    var url = Uri.parse('$baseUrl/posts/$id');
+    var res = await http.put(url, headers: headers, body: jsonEncode(payload));
+
+    if (res.statusCode == 200) {
+      var body = jsonDecode(res.body);
+      var data = body['data'];
+      if (data == null) {
+        data = body;
+      }
+      return Post.fromJson(data);
+    } else {
+      var body = jsonDecode(res.body);
+      String msg = 'Gagal update post';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
+    }
   }
 
+  // hapus post
   Future<void> deletePost(int id) async {
-    final res = await http
-        .delete(Uri.parse('$baseUrl/posts/$id'), headers: _headers)
-        .timeout(timeout);
-    final body = _parseBody(res);
-    if (res.statusCode == 200 || res.statusCode == 204) return;
-    _handleError(res, body);
+    var url = Uri.parse('$baseUrl/posts/$id');
+    var res = await http.delete(url, headers: headers);
+
+    if (res.statusCode == 200 || res.statusCode == 204) {
+      return;
+    } else {
+      var body = {};
+      if (res.body.isNotEmpty) {
+        body = jsonDecode(res.body);
+      }
+      String msg = 'Gagal hapus post';
+      if (body['message'] != null) {
+        msg = body['message'].toString();
+      }
+      throw ApiException(msg, res.statusCode);
+    }
   }
 }

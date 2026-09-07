@@ -18,9 +18,10 @@ class PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dateStr = post.createdAt != null
-        ? DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(post.createdAt!.toLocal())
-        : '-';
+    String dateStr = '-';
+    if (post.createdAt != null) {
+      dateStr = DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(post.createdAt!.toLocal());
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -42,31 +43,28 @@ class PostCard extends StatelessWidget {
                     width: double.infinity,
                     height: 150,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      height: 150,
-                      color: Colors.grey[200],
-                      child: const Center(child: Icon(Icons.broken_image, size: 40)),
-                    ),
+                    errorBuilder: (ctx, err, stack) {
+                      return Container(
+                        height: 150,
+                        color: Colors.grey[200],
+                        child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                      );
+                    },
                   ),
                 ),
-              if (post.imageUrl != null && post.imageUrl!.isNotEmpty)
-                const SizedBox(height: 10),
+              if (post.imageUrl != null && post.imageUrl!.isNotEmpty) const SizedBox(height: 10),
               Row(
                 children: [
                   if (post.categoryName != null)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                        color: const Color(0xFFEDE7F6),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         post.categoryName!,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.deepPurple),
                       ),
                     ),
                   const Spacer(),
@@ -84,9 +82,7 @@ class PostCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                post.excerpt != null && post.excerpt!.isNotEmpty
-                    ? post.excerpt!
-                    : post.content,
+                post.excerpt != null && post.excerpt!.isNotEmpty ? post.excerpt! : post.content,
                 style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,

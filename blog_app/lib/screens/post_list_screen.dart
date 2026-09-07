@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/post_provider.dart';
-import '../providers/category_provider.dart';
+import '../models/post.dart';
+import '../models/category.dart';
+import '../services/api_service.dart';
 import '../widgets/post_card.dart';
 import 'post_detail_screen.dart';
 import 'post_form_screen.dart';
@@ -14,17 +14,30 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  final _searchCtrl = TextEditingController();
+  // controller untuk input search (TextField)
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  // ApiService untuk ambil data
+  final ApiService _api = ApiService();
+
+  // List untuk simpan data
+  List<Post> _posts = [];
+  List<Category> _kategori = [];
+
+  // variabel untuk loading dan error
+  bool _isLoading = false;
+  bool _isLoadingKategori = false;
+  String? _error;
+
+  // untuk filter kategori
   int? _selectedCategoryId;
 
   @override
   void initState() {
     super.initState();
-    // Load after first frame agar context ready
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PostProvider>().loadPosts();
-      context.read<CategoryProvider>().loadCategories();
-    });
+    // load data pertama kali
+    _loadPosts();
+    _loadKategori();
   }
 
   @override
@@ -33,83 +46,153 @@ class _PostListScreenState extends State<PostListScreen> {
     super.dispose();
   }
 
-  Future<void> _onRefresh() async {
-    await context.read<PostProvider>().refresh();
+  // ambil data post dari API
+  Future<void> _loadPosts() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      String? search;
+      if (_searchCtrl.text.trim().isNotEmpty) {
+        search = _searchCtrl.text.trim();
+      }
+
+      List<Post> data = await _api.fetchPosts(
+        search: search,
+        categoryId: _selectedCategoryId,
+      );
+
+      setState(() {
+        _posts = data;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+      });
+    }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
+  // ambil kategori
+  Future<void> _loadKategori() async {
+    setState(() {
+      _isLoadingKategori = true;
+    });
+    try {
+      List<Category> data = await _api.fetchCategories();
+      setState(() {
+        _kategori = data;
+      });
+    } catch (e) {
+      // kalau gagal ambil kategori tidak usah tampilkan error besar
+      // ignore: avoid_print
+      print("Gagal load kategori: $e");
+    }
+    setState(() {
+      _isLoadingKategori = false;
+    });
+  }
+
+  // kalau tekan cari
   void _onSearch() {
-    final q = _searchCtrl.text.trim();
-    context.read<PostProvider>().setFilter(
-          search: q.isEmpty ? null : q,
-          categoryId: _selectedCategoryId,
-        );
+    _loadPosts();
   }
 
+  // kalau ganti kategori
   void _onCategoryChanged(int? catId) {
-    setState(() => _selectedCategoryId = catId);
-    context.read<PostProvider>().setFilter(
-          search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
-          categoryId: catId,
-        );
+    setState(() {
+      _selectedCategoryId = catId;
+    });
+    _loadPosts();
   }
 
+  // pindah ke halaman detail
   void _goToDetail(int id) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PostDetailScreen(postId: id)),
-    );
+      MaterialPageRoute(builder: (context) => PostDetailScreen(postId: id)),
+    ).then((value) {
+      // kalau balik dari detail, refresh
+      _loadPosts();
+    });
   }
 
+  // pindah ke halaman buat post baru
   void _goToCreate() async {
-    final result = await Navigator.push(
+    var result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const PostFormScreen()),
+      MaterialPageRoute(builder: (context) => const PostFormScreen()),
     );
-    if (result == true && mounted) {
-      context.read<PostProvider>().refresh();
+    if (result == true) {
+      _loadPosts();
     }
   }
 
-  void _goToEdit(int id) async {
-    // Ambil post dari list untuk prefill
-    final post = context.read<PostProvider>().posts.firstWhere((p) => p.id == id);
-    final result = await Navigator.push(
+  // pindah ke halaman edit
+  void _goToEdit(Post post) async {
+    var result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PostFormScreen(post: post)),
+      MaterialPageRoute(builder: (context) => PostFormScreen(post: post)),
     );
-    if (result == true && mounted) {
-      context.read<PostProvider>().refresh();
+    if (result == true) {
+      _loadPosts();
     }
   }
 
+  // hapus post
   Future<void> _confirmDelete(int id, String title) async {
-    final ok = await showDialog<bool>(
+    bool? ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Artikel?'),
-        content: Text('Yakin hapus "$title"? Tindakan tidak bisa dibatalkan.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Hapus Artikel?'),
+          content: Text('Yakin hapus "$title"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx, false);
+              },
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
     );
-    if (ok == true && mounted) {
+
+    if (ok == true) {
       try {
-        await context.read<PostProvider>().removePost(id);
+        await _api.deletePost(id);
+        // hapus dari list lokal
+        setState(() {
+          _posts.removeWhere((p) => p.id == id);
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Artikel berhasil dihapus'), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text('Artikel berhasil dihapus'),
+              backgroundColor: Colors.green,
+            ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal hapus: $e'), backgroundColor: Colors.red),
+            SnackBar(
+              content: Text('Gagal hapus: $e'),
+              backgroundColor: Colors.red,
+            ),
           );
         }
       }
@@ -121,12 +204,10 @@ class _PostListScreenState extends State<PostListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Blog App', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _onRefresh,
-            tooltip: 'Refresh',
+            onPressed: _loadPosts,
           ),
         ],
       ),
@@ -137,11 +218,12 @@ class _PostListScreenState extends State<PostListScreen> {
       ),
       body: Column(
         children: [
-          // Search + Filter
+          // bagian search dan filter
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: Column(
               children: [
+                // TextField untuk search
                 TextField(
                   controller: _searchCtrl,
                   decoration: InputDecoration(
@@ -156,132 +238,143 @@ class _PostListScreenState extends State<PostListScreen> {
                               _onSearch();
                             },
                           )
-                        : IconButton(icon: const Icon(Icons.send), onPressed: _onSearch),
+                        : IconButton(
+                            icon: const Icon(Icons.send),
+                            onPressed: _onSearch,
+                          ),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     isDense: true,
                   ),
-                  onSubmitted: (_) => _onSearch(),
-                  onChanged: (_) => setState(() {}),
-                ),
-                const SizedBox(height: 8),
-                Consumer<CategoryProvider>(
-                  builder: (context, catProv, _) {
-                    if (catProv.isLoading) {
-                      return const Align(
-                          alignment: Alignment.centerLeft,
-                          child: SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)));
-                    }
-                    return SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          ChoiceChip(
-                            label: const Text('Semua'),
-                            selected: _selectedCategoryId == null,
-                            onSelected: (_) => _onCategoryChanged(null),
-                          ),
-                          const SizedBox(width: 6),
-                          ...catProv.categories.map((cat) => Padding(
-                                padding: const EdgeInsets.only(right: 6),
-                                child: ChoiceChip(
-                                  label: Text(cat.name),
-                                  selected: _selectedCategoryId == cat.id,
-                                  onSelected: (_) => _onCategoryChanged(cat.id),
-                                ),
-                              )),
-                        ],
-                      ),
-                    );
+                  onSubmitted: (value) {
+                    _onSearch();
+                  },
+                  onChanged: (value) {
+                    setState(() {});
                   },
                 ),
+                const SizedBox(height: 8),
+                // filter kategori pakai ChoiceChip
+                if (_isLoadingKategori)
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Semua'),
+                          selected: _selectedCategoryId == null,
+                          onSelected: (val) {
+                            _onCategoryChanged(null);
+                          },
+                        ),
+                        const SizedBox(width: 6),
+                        // loop kategori
+                        for (var cat in _kategori)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 6),
+                            child: ChoiceChip(
+                              label: Text(cat.name),
+                              selected: _selectedCategoryId == cat.id,
+                              onSelected: (val) {
+                                _onCategoryChanged(cat.id);
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
           const Divider(height: 1),
-          // List
+          // bagian list
           Expanded(
-            child: Consumer<PostProvider>(
-              builder: (context, prov, _) {
-                if (prov.isLoading) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (prov.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.cloud_off, size: 56, color: Colors.grey),
-                          const SizedBox(height: 12),
-                          Text('Gagal memuat data',
-                              style: Theme.of(context).textTheme.titleMedium),
-                          const SizedBox(height: 6),
-                          Text(
-                            prov.error!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.grey, fontSize: 12),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cloud_off, size: 56, color: Colors.grey),
+                              const SizedBox(height: 12),
+                              Text('Gagal memuat data', style: Theme.of(context).textTheme.titleMedium),
+                              const SizedBox(height: 6),
+                              Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                              const SizedBox(height: 6),
+                              const Text(
+                                'Pastikan backend jalan di http://10.0.2.2:3000\nEmulator pakai 10.0.2.2, HP fisik pakai IP LAN',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(fontSize: 11, color: Colors.grey),
+                              ),
+                              const SizedBox(height: 16),
+                              FilledButton.icon(
+                                onPressed: _loadPosts,
+                                icon: const Icon(Icons.refresh),
+                                label: const Text('Coba lagi'),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Pastikan backend jalan di http://10.0.2.2:3000\nEmulator pakai 10.0.2.2, HP fisik pakai IP LAN laptop',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                        ),
+                      )
+                    : _posts.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.article_outlined, size: 64, color: Colors.grey[400]),
+                                  const SizedBox(height: 12),
+                                  const Text('Belum ada artikel', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 6),
+                                  const Text('Tap tombol Tulis untuk membuat artikel pertama.', style: TextStyle(color: Colors.grey)),
+                                  const SizedBox(height: 16),
+                                  FilledButton.icon(
+                                    onPressed: _goToCreate,
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Buat Artikel'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _loadPosts,
+                            child: ListView.builder(
+                              itemCount: _posts.length,
+                              itemBuilder: (ctx, i) {
+                                Post post = _posts[i];
+                                return PostCard(
+                                  post: post,
+                                  onTap: () {
+                                    _goToDetail(post.id);
+                                  },
+                                  onEdit: () {
+                                    _goToEdit(post);
+                                  },
+                                  onDelete: () {
+                                    _confirmDelete(post.id, post.title);
+                                  },
+                                );
+                              },
+                            ),
                           ),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: () => prov.refresh(),
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Coba lagi'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                if (prov.posts.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.article_outlined, size: 64, color: Colors.grey[400]),
-                          const SizedBox(height: 12),
-                          const Text('Belum ada artikel',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 6),
-                          const Text('Tap tombol Tulis untuk membuat artikel pertama.',
-                              style: TextStyle(color: Colors.grey)),
-                          const SizedBox(height: 16),
-                          FilledButton.icon(
-                            onPressed: _goToCreate,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Buat Artikel'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return RefreshIndicator(
-                  onRefresh: _onRefresh,
-                  child: ListView.builder(
-                    itemCount: prov.posts.length,
-                    itemBuilder: (ctx, i) {
-                      final post = prov.posts[i];
-                      return PostCard(
-                        post: post,
-                        onTap: () => _goToDetail(post.id),
-                        onEdit: () => _goToEdit(post.id),
-                        onDelete: () => _confirmDelete(post.id, post.title),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
           ),
         ],
       ),

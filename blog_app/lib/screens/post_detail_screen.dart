@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import '../models/post.dart';
-import '../providers/post_provider.dart';
+import '../services/api_service.dart';
 import 'post_form_screen.dart';
 
 class PostDetailScreen extends StatefulWidget {
@@ -14,6 +13,8 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
+  final ApiService _api = ApiService();
+
   Post? _post;
   bool _isLoading = true;
   String? _error;
@@ -29,59 +30,65 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       _isLoading = true;
       _error = null;
     });
+
     try {
-      // Coba ambil dari provider list dulu biar cepat, fallback ke API
-      final prov = context.read<PostProvider>();
-      final cached = prov.posts.where((p) => p.id == widget.postId).toList();
-      if (cached.isNotEmpty) {
-        _post = cached.first;
-        // Tetap refresh dari API untuk data terbaru
-        final fresh = await prov.getPostDetail(widget.postId);
-        if (mounted) setState(() => _post = fresh);
-      } else {
-        final fresh = await prov.getPostDetail(widget.postId);
-        if (mounted) setState(() => _post = fresh);
-      }
+      Post data = await _api.fetchPost(widget.postId);
+      setState(() {
+        _post = data;
+      });
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() {
+        _error = e.toString();
+      });
     }
+
+    setState(() {
+      _isLoading = false;
+    });
   }
 
   Future<void> _onEdit() async {
     if (_post == null) return;
-    final result = await Navigator.push(
+    var result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PostFormScreen(post: _post)),
+      MaterialPageRoute(builder: (context) => PostFormScreen(post: _post)),
     );
-    if (result == true && mounted) {
-      await _load();
-      // refresh list di belakang
-      if (mounted) context.read<PostProvider>().refresh();
+    if (result == true) {
+      _load();
     }
   }
 
   Future<void> _onDelete() async {
     if (_post == null) return;
-    final ok = await showDialog<bool>(
+
+    bool? ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Artikel?'),
-        content: Text('Yakin hapus "${_post!.title}"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Hapus Artikel?'),
+          content: Text('Yakin hapus "${_post!.title}"?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx, false);
+              },
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
     );
-    if (ok == true && mounted) {
+
+    if (ok == true) {
       try {
-        await context.read<PostProvider>().removePost(_post!.id);
+        await _api.deletePost(_post!.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Artikel dihapus'), backgroundColor: Colors.green),
@@ -106,10 +113,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         actions: [
           if (_post != null) ...[
             IconButton(icon: const Icon(Icons.edit), onPressed: _onEdit, tooltip: 'Edit'),
-            IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: _onDelete,
-                tooltip: 'Hapus'),
+            IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: _onDelete, tooltip: 'Hapus'),
           ],
         ],
       ),
@@ -153,38 +157,32 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   width: double.infinity,
                                   height: 200,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    height: 200,
-                                    color: Colors.grey[200],
-                                    child:
-                                        const Center(child: Icon(Icons.broken_image, size: 40)),
-                                  ),
+                                  errorBuilder: (ctx, err, stack) {
+                                    return Container(
+                                      height: 200,
+                                      color: Colors.grey[200],
+                                      child: const Center(child: Icon(Icons.broken_image, size: 40)),
+                                    );
+                                  },
                                 ),
                               ),
-                            if (_post!.imageUrl != null && _post!.imageUrl!.isNotEmpty)
-                              const SizedBox(height: 16),
+                            if (_post!.imageUrl != null && _post!.imageUrl!.isNotEmpty) const SizedBox(height: 16),
                             if (_post!.categoryName != null)
                               Container(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                  color: const Color(0xFFEDE7F6),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Text(
                                   _post!.categoryName!,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: Theme.of(context).colorScheme.primary,
-                                  ),
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple),
                                 ),
                               ),
                             const SizedBox(height: 12),
                             Text(
                               _post!.title,
-                              style: const TextStyle(
-                                  fontSize: 22, fontWeight: FontWeight.bold, height: 1.3),
+                              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, height: 1.3),
                             ),
                             const SizedBox(height: 8),
                             Row(
@@ -193,15 +191,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 const SizedBox(width: 4),
                                 Text(
                                   _post!.createdAt != null
-                                      ? DateFormat('EEEE, dd MMMM yyyy HH:mm', 'id_ID')
-                                          .format(_post!.createdAt!.toLocal())
+                                      ? DateFormat('EEEE, dd MMMM yyyy HH:mm', 'id_ID').format(_post!.createdAt!.toLocal())
                                       : '-',
                                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                                 ),
                               ],
                             ),
-                            if (_post!.updatedAt != null &&
-                                _post!.updatedAt != _post!.createdAt) ...[
+                            if (_post!.updatedAt != null && _post!.updatedAt != _post!.createdAt) ...[
                               const SizedBox(height: 4),
                               Text(
                                 'Diupdate: ${DateFormat('dd MMM yyyy HH:mm').format(_post!.updatedAt!.toLocal())}',
@@ -214,14 +210,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.amber.withValues(alpha: 0.1),
+                                  color: const Color(0xFFFFF8E1),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                                  border: Border.all(color: const Color(0xFFFFE082)),
                                 ),
                                 child: Text(
                                   _post!.excerpt!,
-                                  style: const TextStyle(
-                                      fontStyle: FontStyle.italic, height: 1.5),
+                                  style: const TextStyle(fontStyle: FontStyle.italic, height: 1.5),
                                 ),
                               ),
                               const SizedBox(height: 16),

@@ -1,15 +1,19 @@
 import 'category.dart';
 
+// Model untuk Post / Artikel
+// Contoh penggunaan tipe data Dart
+
 class Post {
-  final int id;
-  final String title;
-  final String content;
-  final String? excerpt;
-  final String? imageUrl;
-  final int? categoryId;
-  final String? categoryName;
+  // final = hanya diisi sekali
+  final int id; // int
+  final String title; // String
+  final String content; // String
+  final String? excerpt; // String bisa null
+  final String? imageUrl; // String bisa null
+  final int? categoryId; // int bisa null
+  final String? categoryName; // String bisa null
   final String? categorySlug;
-  final Category? category;
+  final Category? category; // object Category bisa null
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -27,83 +31,98 @@ class Post {
     this.updatedAt,
   });
 
+  // Buat Post dari json (Map) yang dikirim backend
   factory Post.fromJson(Map<String, dynamic> json) {
-    // Backend may return flat fields or nested category object
+    // cek apakah ada category di dalam json (Map nested)
     Category? cat;
     if (json['category'] is Map<String, dynamic>) {
       cat = Category.fromJson(json['category']);
     }
 
+    // ambil id, kalau bukan int paksa jadi int
+    int id = json['id'] as int;
+
+    // ambil title dan content, kalau null kasih string kosong
+    String title = json['title'] ?? '';
+    String content = json['content'] ?? '';
+
+    // image bisa dari image_url atau imageUrl
+    String? img = json['image_url'];
+    if (img == null) {
+      img = json['imageUrl'];
+    }
+
+    // categoryId
+    int? catId;
+    if (json['category_id'] != null) {
+      catId = json['category_id'] as int;
+    } else {
+      // kalau tidak ada, ambil dari cat object
+      if (cat != null) {
+        catId = cat.id;
+      }
+    }
+
+    // categoryName
+    String? catName = json['category_name'];
+    if (catName == null) {
+      catName = json['categoryName'];
+    }
+    if (catName == null && cat != null) {
+      catName = cat.name;
+    }
+
+    // categorySlug
+    String? catSlug = json['category_slug'];
+    if (catSlug == null) {
+      catSlug = json['categorySlug'];
+    }
+    if (catSlug == null && cat != null) {
+      catSlug = cat.slug;
+    }
+
+    // tanggal dibuat
+    DateTime? created;
+    if (json['created_at'] != null) {
+      created = DateTime.tryParse(json['created_at'].toString());
+    } else if (json['createdAt'] != null) {
+      created = DateTime.tryParse(json['createdAt'].toString());
+    }
+
+    // tanggal update
+    DateTime? updated;
+    if (json['updated_at'] != null) {
+      updated = DateTime.tryParse(json['updated_at'].toString());
+    } else if (json['updatedAt'] != null) {
+      updated = DateTime.tryParse(json['updatedAt'].toString());
+    }
+
     return Post(
-      id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
-      title: json['title'] ?? '',
-      content: json['content'] ?? '',
+      id: id,
+      title: title,
+      content: content,
       excerpt: json['excerpt'],
-      imageUrl: json['image_url'] ?? json['imageUrl'],
-      categoryId: json['category_id'] != null
-          ? (json['category_id'] is int
-              ? json['category_id']
-              : int.tryParse(json['category_id'].toString()))
-          : cat?.id,
-      categoryName: json['category_name'] ?? json['categoryName'] ?? cat?.name,
-      categorySlug: json['category_slug'] ?? json['categorySlug'] ?? cat?.slug,
+      imageUrl: img,
+      categoryId: catId,
+      categoryName: catName,
+      categorySlug: catSlug,
       category: cat,
-      createdAt: json['created_at'] != null
-          ? DateTime.tryParse(json['created_at'].toString())
-          : (json['createdAt'] != null
-              ? DateTime.tryParse(json['createdAt'].toString())
-              : null),
-      updatedAt: json['updated_at'] != null
-          ? DateTime.tryParse(json['updated_at'].toString())
-          : (json['updatedAt'] != null
-              ? DateTime.tryParse(json['updatedAt'].toString())
-              : null),
+      createdAt: created,
+      updatedAt: updated,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'content': content,
-        'excerpt': excerpt,
-        'image_url': imageUrl,
-        'category_id': categoryId,
-      };
-
-  /// For POST / PUT body
-  Map<String, dynamic> toCreateJson() => {
-        'title': title,
-        'content': content,
-        'excerpt': excerpt,
-        'image_url': imageUrl,
-        'category_id': categoryId,
-      };
-
-  Post copyWith({
-    int? id,
-    String? title,
-    String? content,
-    String? excerpt,
-    String? imageUrl,
-    int? categoryId,
-    String? categoryName,
-    String? categorySlug,
-    Category? category,
-    DateTime? createdAt,
-    DateTime? updatedAt,
-  }) {
-    return Post(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      content: content ?? this.content,
-      excerpt: excerpt ?? this.excerpt,
-      imageUrl: imageUrl ?? this.imageUrl,
-      categoryId: categoryId ?? this.categoryId,
-      categoryName: categoryName ?? this.categoryName,
-      categorySlug: categorySlug ?? this.categorySlug,
-      category: category ?? this.category,
-      createdAt: createdAt ?? this.createdAt,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
+  // Untuk kirim data ke API (create / update)
+  Map<String, dynamic> toJson() {
+    // Map = kumpulan key-value
+    Map<String, dynamic> data = {
+      'id': id,
+      'title': title,
+      'content': content,
+      'excerpt': excerpt,
+      'image_url': imageUrl,
+      'category_id': categoryId,
+    };
+    return data;
   }
 }
