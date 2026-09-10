@@ -1,122 +1,162 @@
-import 'package:flutter/material.dart';
-import '../post.dart';
-import '../api_service.dart';
-import '../post_card.dart';
-import 'detail_page.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+import '../api_config.dart';
 import 'add_post_page.dart';
-import 'edit_post_page.dart';
+import 'detail_page.dart';
 
 class PostListScreen extends StatefulWidget {
   const PostListScreen({super.key});
+
   @override
   State<PostListScreen> createState() => _PostListScreenState();
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  final ApiService _api = ApiService();
-  List<Post> _posts = [];
-  bool _isLoading = false;
-  String? _error;
+  List<dynamic> artikel = [];
+
+  Future<void> getArtikel() async {
+    try {
+      final response = await http.get(
+        Uri.parse("$apiBaseUrl/api/artikel"),
+      );
+
+      if (response.statusCode == 200) {
+        var body = jsonDecode(response.body);
+        // handle 2 bentuk: langsung List atau {data: [...]}
+        List data;
+        if (body is Map && body['data'] != null) {
+          data = body['data'];
+        } else if (body is List) {
+          data = body;
+        } else {
+          data = [];
+        }
+        setState(() {
+          artikel = data;
+        });
+      } else {
+        print("gagal ambil data artikel: ${response.statusCode}");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal ambil data: ${response.statusCode} - cek API_URL $apiBaseUrl')),
+          );
+        }
+      }
+    } catch (e) {
+      print("error getArtikel: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Tidak bisa konek ke $apiBaseUrl - cek WiFi & firewall')),
+        );
+      }
+    }
+  }
+
+  Future<void> deleteArtikel(int id) async {
+    final response = await http.delete(
+      Uri.parse('$apiBaseUrl/api/artikel/$id'),
+    );
+
+    if (!mounted) return;
+    if (response.statusCode == 200 || response.statusCode == 204) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Artikel berhasil dihapus')),
+      );
+      setState(() {
+        artikel.removeWhere((a) => (a['id'] ?? a['id_artikel']) == id);
+      });
+    } else {
+      print('gagal hapus artikel: ${response.statusCode}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gagal hapus: ${response.statusCode}')),
+      );
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadPosts();
-  }
-
-  Future<void> _loadPosts() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    try {
-      final data = await _api.fetchPosts();
-      setState(() => _posts = data);
-    } catch (e) {
-      setState(() => _error = e.toString());
-    }
-    setState(() => _isLoading = false);
-  }
-
-  void _goToDetail(int id) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => PostDetailScreen(postId: id))).then((_) => _loadPosts());
-  }
-
-  void _goToCreate() async {
-    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddPostPage()));
-    if (res == true) _loadPosts();
-  }
-
-  void _goToEdit(Post post) async {
-    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => EditPostPage(post: post)));
-    if (res == true) _loadPosts();
-  }
-
-  Future<void> _confirmDelete(Post post) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Artikel?'),
-        content: Text('Yakin hapus "${post.title}"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus')),
-        ],
-      ),
-    );
-    if (ok == true) {
-      try {
-        await _api.deletePost(post.id);
-        setState(() => _posts.removeWhere((p) => p.id == post.id));
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Artikel dihapus'), backgroundColor: Colors.green));
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal hapus: $e'), backgroundColor: Colors.red));
-      }
-    }
+    getArtikel();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Blog App', style: TextStyle(fontWeight: FontWeight.bold)), actions: [IconButton(icon: const Icon(Icons.refresh), onPressed: _loadPosts)]),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _goToCreate, icon: const Icon(Icons.add), label: const Text('Tulis')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      const Icon(Icons.cloud_off, size: 56, color: Colors.grey),
-                      const SizedBox(height: 12),
-                      Text(_error!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 8),
-                      const Text('Pastikan backend jalan di http://localhost:8000\nUSB: adb reverse tcp:8000 tcp:8000', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 16),
-                      FilledButton.icon(onPressed: _loadPosts, icon: const Icon(Icons.refresh), label: const Text('Coba lagi'))
-                    ]),
-                  ),
-                )
-              : _posts.isEmpty
-                  ? Center(
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        Icon(Icons.article_outlined, size: 64, color: Colors.grey[400]),
-                        const SizedBox(height: 12),
-                        const Text('Belum ada artikel'),
-                        const SizedBox(height: 16),
-                        FilledButton.icon(onPressed: _goToCreate, icon: const Icon(Icons.add), label: const Text('Buat Artikel'))
-                      ]),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _loadPosts,
-                      child: ListView.builder(
-                        itemCount: _posts.length,
-                        itemBuilder: (ctx, i) {
-                          final p = _posts[i];
-                          return PostCard(post: p, onTap: () => _goToDetail(p.id), onEdit: () => _goToEdit(p), onDelete: () => _confirmDelete(p));
-                        },
+      appBar: AppBar(
+        title: Text("Blog App"),
+        actions: [
+          IconButton(icon: Icon(Icons.refresh), onPressed: getArtikel),
+        ],
+      ),
+      body: ListView.builder(
+        itemCount: artikel.length,
+        itemBuilder: (context, index) {
+          final item = artikel[index];
+          // DB hanya menyimpan nama file gambar; backend menyajikannya
+          // dari folder /uploads, jadi URL dibangun lewat helper ini.
+          final gambar = gambarArtikelUrl(item['gambar_artikel']);
+          return Card(
+            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: ListTile(
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: gambar.isNotEmpty
+                    ? Image.network(
+                        gambar,
+                        width: 60,
+                        height: 60,
+                        fit: BoxFit.cover,
+                        errorBuilder: (c, e, s) => Container(
+                          width: 60,
+                          height: 60,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image, color: Colors.grey),
+                        ),
+                      )
+                    : Container(
+                        width: 60,
+                        height: 60,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image, color: Colors.grey),
                       ),
+              ),
+              title: Text(item['judul_artikel'] ?? item['title'] ?? '-'),
+              subtitle: Text(
+                "${item['nama_kategori'] ?? item['category_name'] ?? '-'} - ${item['isi_artikel'] ?? item['content'] ?? ''}",
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete, color: Colors.red),
+                onPressed: () {
+                  deleteArtikel(item['id'] ?? item['id_artikel']);
+                },
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PostDetailScreen(
+                      postId: item['id'] ?? item['id_artikel'],
                     ),
+                  ),
+                ).then((value) => getArtikel());
+              },
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => AddPostPage()),
+          ).then((value) => getArtikel());
+        },
+        child: Icon(Icons.add),
+      ),
     );
   }
 }

@@ -1,127 +1,245 @@
-import 'package:flutter/material.dart';
-import '../post.dart';
-import '../category.dart';
-import '../api_service.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
-class PostFormScreen extends StatefulWidget {
-  final Post? post;
-  const PostFormScreen({super.key, this.post});
+import '../api_config.dart';
+
+class AddPostPage extends StatefulWidget {
+  const AddPostPage({super.key});
+
   @override
-  State<PostFormScreen> createState() => _PostFormScreenState();
+  State<AddPostPage> createState() => _AddPostPageState();
 }
 
-class _PostFormScreenState extends State<PostFormScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _titleCtrl = TextEditingController();
-  final _contentCtrl = TextEditingController();
-  final ApiService _api = ApiService();
-  List<Category> _kategori = [];
-  bool _loadingKategori = false;
-  int? _selectedCategoryId;
-  bool _isSaving = false;
-  bool get isEdit => widget.post != null;
+class _AddPostPageState extends State<AddPostPage> {
+  TextEditingController judulController = TextEditingController();
+  TextEditingController isiController = TextEditingController();
+  TextEditingController penulisController = TextEditingController();
+  List<dynamic> kategori = [];
+  int? selectedKategori;
+  XFile? pickedImage;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> getKategori() async {
+    final response = await http.get(
+      Uri.parse("$apiBaseUrl/api/kategori"),
+    );
+
+    if (response.statusCode == 200) {
+      var body = jsonDecode(response.body);
+      List data;
+      if (body is Map && body['data'] != null) {
+        data = body['data'];
+      } else if (body is List) {
+        data = body;
+      } else {
+        data = [];
+      }
+      setState(() {
+        kategori = data;
+      });
+    } else {
+      print("gagal ambil kategori");
+    }
+  }
+
+  Future<void> pickImage() async {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+    );
+    if (image != null) {
+      // Validasi 5MB client-side
+      final bytes = await image.length();
+      if (bytes > 5 * 1024 * 1024) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Ukuran file maksimal 5MB")),
+        );
+        return;
+      }
+      final ext = image.name.toLowerCase();
+      if (!(ext.endsWith(".jpg") || ext.endsWith(".jpeg") || ext.endsWith(".png") || ext.endsWith(".webp"))) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Hanya jpg, png, webp yang diperbolehkan")),
+        );
+        return;
+      }
+      setState(() => pickedImage = image);
+    }
+  }
+
+  Future<void> tambahArtikel() async {
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse("$apiBaseUrl/api/artikel"),
+      );
+      request.fields['judul_artikel'] = judulController.text;
+      request.fields['isi_artikel'] = isiController.text;
+      request.fields['id_kategori'] = selectedKategori.toString();
+      request.fields['penulis_artikel'] = penulisController.text;
+
+      if (pickedImage != null) {
+        request.files.add(
+          await http.MultipartFile.fromPath('gambar_artikel', pickedImage!.path),
+        );
+      }
+
+      var streamed = await request.send();
+      var response = await http.Response.fromStream(streamed);
+
+      if (!mounted) return;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Artikel berhasil ditambahkan")),
+        );
+        Navigator.pop(context, true);
+      } else {
+        print("gagal tambah artikel: ${response.statusCode} ${response.body}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Gagal tambah: ${response.statusCode} ${response.body}")),
+        );
+      }
+    } catch (e) {
+      print("error tambah: $e");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
+      );
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    if (widget.post != null) {
-      _titleCtrl.text = widget.post!.title;
-      _contentCtrl.text = widget.post!.content;
-      _selectedCategoryId = widget.post!.categoryId;
-    }
-    _loadKategori();
-  }
-
-  Future<void> _loadKategori() async {
-    setState(() => _loadingKategori = true);
-    try {
-      final data = await _api.fetchCategories();
-      setState(() => _kategori = data);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal load kategori: $e'), backgroundColor: Colors.orange));
-    }
-    setState(() => _loadingKategori = false);
-  }
-
-  @override
-  void dispose() {
-    _titleCtrl.dispose();
-    _contentCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategoryId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pilih kategori'), backgroundColor: Colors.orange));
-      return;
-    }
-    setState(() => _isSaving = true);
-    try {
-      if (isEdit) {
-        await _api.updatePost(widget.post!.id, title: _titleCtrl.text.trim(), content: _contentCtrl.text.trim(), categoryId: _selectedCategoryId!);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Artikel diupdate'), backgroundColor: Colors.green));
-      } else {
-        await _api.createPost(title: _titleCtrl.text.trim(), content: _contentCtrl.text.trim(), categoryId: _selectedCategoryId!);
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Artikel dibuat'), backgroundColor: Colors.green));
-      }
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red));
-    }
-    setState(() => _isSaving = false);
+    getKategori();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(isEdit ? 'Edit Artikel' : 'Tulis Artikel')),
-      body: Form(
-        key: _formKey,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
-          TextFormField(
-            controller: _titleCtrl,
-            decoration: const InputDecoration(labelText: 'Judul *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.title)),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Judul wajib diisi';
-              if (v.trim().length < 3) return 'Minimal 3 karakter';
-              return null;
-            },
-          ),
-          const SizedBox(height: 14),
-          if (_loadingKategori)
-            const LinearProgressIndicator()
-          else
-            DropdownButtonFormField<int>(
-              initialValue: _selectedCategoryId,
-              decoration: const InputDecoration(labelText: 'Kategori *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.category)),
-              hint: const Text('Pilih kategori'),
-              items: _kategori.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-              onChanged: (v) => setState(() => _selectedCategoryId = v),
-              validator: (v) => v == null ? 'Kategori wajib dipilih' : null,
+      appBar: AppBar(title: const Text("Tambah Artikel")),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            TextField(
+              controller: judulController,
+              decoration: const InputDecoration(
+                labelText: "Judul Artikel",
+                border: OutlineInputBorder(),
+              ),
             ),
-          const SizedBox(height: 14),
-          TextFormField(
-            controller: _contentCtrl,
-            decoration: const InputDecoration(labelText: 'Isi Artikel *', border: OutlineInputBorder(), alignLabelWithHint: true),
-            maxLines: 7,
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) return 'Isi wajib diisi';
-              if (v.trim().length < 10) return 'Minimal 10 karakter';
-              return null;
-            },
-          ),
-          const SizedBox(height: 22),
-          SizedBox(
-            height: 48,
-            child: FilledButton.icon(onPressed: _isSaving ? null : _save, icon: _isSaving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : Icon(isEdit ? Icons.save : Icons.send), label: Text(_isSaving ? 'Menyimpan...' : (isEdit ? 'Update' : 'Publikasikan'))),
-          ),
-        ]),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: selectedKategori,
+              hint: const Text("Pilih Kategori"),
+              decoration: const InputDecoration(
+                labelText: "Kategori",
+                border: OutlineInputBorder(),
+              ),
+              items: kategori.map((item) {
+                return DropdownMenuItem<int>(
+                  value: item['id'] ?? item['id_kategori'],
+                  child: Text(item['nama_kategori'] ?? item['name'] ?? '-'),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedKategori = value;
+                });
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: penulisController,
+              decoration: const InputDecoration(
+                labelText: "Penulis Artikel",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: isiController,
+              decoration: const InputDecoration(
+                labelText: "Isi Artikel",
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 5,
+            ),
+            const SizedBox(height: 12),
+            // Image picker
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  if (pickedImage != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(pickedImage!.path),
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(pickedImage == null ? "Pilih Gambar (jpg/png/webp, max 5MB)" : "Ganti Gambar"),
+                    onPressed: pickImage,
+                  ),
+                  if (pickedImage != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text("Hapus Gambar", style: TextStyle(color: Colors.red)),
+                      onPressed: () => setState(() => pickedImage = null),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (judulController.text.isEmpty ||
+                      isiController.text.isEmpty ||
+                      penulisController.text.isEmpty ||
+                      selectedKategori == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Semua field wajib diisi")),
+                    );
+                    return;
+                  }
+                  tambahArtikel();
+                },
+                child: const Text("Simpan"),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
-}
-
-class AddPostPage extends PostFormScreen {
-  const AddPostPage({super.key}) : super(post: null);
 }
