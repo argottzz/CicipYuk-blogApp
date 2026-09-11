@@ -58,27 +58,6 @@ class _PostListScreenState extends State<PostListScreen> {
     }
   }
 
-  Future<void> deleteArtikel(int id) async {
-    final response = await http.delete(
-      Uri.parse('$apiBaseUrl/api/artikel/$id'),
-    );
-
-    if (!mounted) return;
-    if (response.statusCode == 200 || response.statusCode == 204) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Artikel berhasil dihapus')),
-      );
-      setState(() {
-        artikel.removeWhere((a) => (a['id'] ?? a['id_artikel']) == id);
-      });
-    } else {
-      print('gagal hapus artikel: ${response.statusCode}');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal hapus: ${response.statusCode}')),
-      );
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -158,12 +137,6 @@ class _PostListScreenState extends State<PostListScreen> {
                 "${item['nama_kategori'] ?? item['category_name'] ?? '-'} - ${item['isi_artikel'] ?? item['content'] ?? ''}",
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-              ),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  deleteArtikel(item['id'] ?? item['id_artikel']);
-                },
               ),
               onTap: () {
                 Navigator.push(
