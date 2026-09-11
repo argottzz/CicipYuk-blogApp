@@ -69,11 +69,11 @@ class _PostListScreenState extends State<PostListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text("CicipYuk"),
-        actions: [
-          IconButton(icon: Icon(Icons.refresh), onPressed: getArtikel),
-        ],
       ),
-      body: ListView.builder(
+      body: RefreshIndicator(
+        onRefresh: getArtikel,
+        child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
         itemCount: artikel.length,
         itemBuilder: (context, index) {
           final item = artikel[index];
@@ -151,6 +151,7 @@ class _PostListScreenState extends State<PostListScreen> {
             ),
           );
         },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
