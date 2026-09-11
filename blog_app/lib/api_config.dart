@@ -19,8 +19,15 @@ const String apiBaseUrl = String.fromEnvironment(
 /// - diawali "uploads/"   -> tidak di-dobel prefixnya
 String gambarArtikelUrl(dynamic gambar) {
   if (gambar == null) return '';
-  final String g = gambar.toString().trim();
-  if (g.isEmpty) return '';
+  var g = gambar.toString().trim().replaceAll('\\', '/');
+  while (g.startsWith('./')) {
+    g = g.substring(2);
+  }
+  // buang slash ganda di depan, tapi sisakan satu untuk path root
+  while (g.startsWith('//')) {
+    g = g.substring(1);
+  }
+  if (g.isEmpty || g.toLowerCase() == 'null') return '';
   if (g.startsWith('http://') || g.startsWith('https://')) return g;
   if (g.startsWith('/')) return '$apiBaseUrl$g';
   if (g.toLowerCase().startsWith('uploads/')) return '$apiBaseUrl/$g';

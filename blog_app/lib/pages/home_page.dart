@@ -36,6 +36,10 @@ class _PostListScreenState extends State<PostListScreen> {
         setState(() {
           artikel = data;
         });
+        if (data.isNotEmpty) {
+          print("contoh gambar_artikel: ${data.first['gambar_artikel']}");
+          print("contoh URL gambar: ${gambarArtikelUrl(data.first['gambar_artikel'])}");
+        }
       } else {
         print("gagal ambil data artikel: ${response.statusCode}");
         if (mounted) {
@@ -94,33 +98,60 @@ class _PostListScreenState extends State<PostListScreen> {
         itemCount: artikel.length,
         itemBuilder: (context, index) {
           final item = artikel[index];
-          // DB hanya menyimpan nama file gambar; backend menyajikannya
+          // DB menyimpan "uploads/namafile.jpg", backend menyajikannya
           // dari folder /uploads, jadi URL dibangun lewat helper ini.
-          final gambar = gambarArtikelUrl(item['gambar_artikel']);
+          final gambar = gambarArtikelUrl(
+            item['gambar_artikel'] ?? item['gambar'] ?? item['image'],
+          );
           return Card(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: ListTile(
-              leading: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: gambar.isNotEmpty
-                    ? Image.network(
-                        gambar,
-                        width: 60,
-                        height: 60,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Container(
+              leading: SizedBox(
+                width: 60,
+                height: 60,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: gambar.isNotEmpty
+                      ? Image.network(
+                          gambar,
+                          width: 60,
+                          height: 60,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          loadingBuilder: (c, child, progress) {
+                            if (progress == null) return child;
+                            return Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (c, e, s) {
+                            print('gagal load gambar $gambar: $e');
+                            return Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image, color: Colors.grey),
+                            );
+                          },
+                        )
+                      : Container(
                           width: 60,
                           height: 60,
                           color: Colors.grey.shade200,
                           child: const Icon(Icons.image, color: Colors.grey),
                         ),
-                      )
-                    : Container(
-                        width: 60,
-                        height: 60,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, color: Colors.grey),
-                      ),
+                ),
               ),
               title: Text(item['judul_artikel'] ?? item['title'] ?? '-'),
               subtitle: Text(

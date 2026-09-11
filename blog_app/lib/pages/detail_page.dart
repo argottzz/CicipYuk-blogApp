@@ -126,7 +126,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       );
     }
 
-    final gambarUrl = gambarArtikelUrl(artikel!['gambar_artikel']);
+    final gambarUrl = gambarArtikelUrl(
+      artikel!['gambar_artikel'] ?? artikel!['gambar'] ?? artikel!['image'],
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -167,12 +169,27 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       width: double.infinity,
                       height: 220,
                       fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => Container(
-                        height: 180,
-                        width: double.infinity,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, size: 48, color: Colors.grey),
-                      ),
+                      gaplessPlayback: true,
+                      loadingBuilder: (c, child, progress) {
+                        if (progress == null) return child;
+                        return Container(
+                          height: 220,
+                          width: double.infinity,
+                          color: Colors.grey.shade200,
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      },
+                      errorBuilder: (c, e, s) {
+                        print('gagal load gambar detail $gambarUrl: $e');
+                        return Container(
+                          height: 180,
+                          width: double.infinity,
+                          color: Colors.grey.shade200,
+                          child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                        );
+                      },
                     )
                   : Container(
                       height: 180,

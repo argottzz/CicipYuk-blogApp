@@ -124,7 +124,8 @@ class _EditPostPageState extends State<EditPostPage> {
 
   @override
   Widget build(BuildContext context) {
-    final existingGambar = widget.artikel['gambar_artikel'] as String?;
+    final existingGambar =
+        (widget.artikel['gambar_artikel'] ?? widget.artikel['gambar'] ?? widget.artikel['image']) as String?;
     return Scaffold(
       appBar: AppBar(title: const Text("Edit Artikel")),
       body: SingleChildScrollView(
@@ -195,21 +196,37 @@ class _EditPostPageState extends State<EditPostPage> {
                         fit: BoxFit.cover,
                       ),
                     )
-                  else if (existingGambar != null && existingGambar.isNotEmpty)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        gambarArtikelUrl(existingGambar),
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                        errorBuilder: (c, e, s) => Container(
-                          height: 120,
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                    else if (existingGambar != null && existingGambar.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          gambarArtikelUrl(existingGambar),
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          loadingBuilder: (c, child, progress) {
+                            if (progress == null) return child;
+                            return Container(
+                              height: 180,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                          errorBuilder: (c, e, s) {
+                            print(
+                                'gagal load gambar edit ${gambarArtikelUrl(existingGambar)}: $e');
+                            return Container(
+                              height: 120,
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image,
+                                  size: 48, color: Colors.grey),
+                            );
+                          },
                         ),
-                      ),
-                    )
+                      )
                   else
                     Container(
                       height: 120,
