@@ -11,14 +11,33 @@ class BlogApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Blog App - SMK Taruna Bhakti',
+      title: 'CicipYuk',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        scaffoldBackgroundColor: const Color(0xFFF5F1EA),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE85D2A)),
         useMaterial3: true,
-        appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+        appBarTheme: const AppBarTheme(
+          centerTitle: false,
+          elevation: 0,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.black,
+        ),
         inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Color(0xFFE85D2A)),
+          ),
         ),
       ),
       home: const PostListScreen(),

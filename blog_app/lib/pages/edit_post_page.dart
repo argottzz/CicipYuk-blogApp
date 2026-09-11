@@ -221,18 +221,24 @@ class _EditPostPageState extends State<EditPostPage> {
             as String?;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F1EA),
       appBar: AppBar(
-        title: const Text("Edit Artikel"),
+        backgroundColor: Colors.transparent,
+        title: const Text("Edit Artikel", style: TextStyle(fontWeight: FontWeight.w700)),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text("CicipYuk", style: TextStyle(color: Color(0xFFE85D2A), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text("Edit Post", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600, letterSpacing: -0.5)),
+            const SizedBox(height: 16),
             TextField(
               controller: judulController,
               decoration: const InputDecoration(
                 labelText: "Judul Artikel",
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -247,7 +253,6 @@ class _EditPostPageState extends State<EditPostPage> {
               hint: const Text("Pilih Kategori"),
               decoration: const InputDecoration(
                 labelText: "Kategori",
-                border: OutlineInputBorder(),
               ),
               items: kategori.map((item) {
                 return DropdownMenuItem<int>(
@@ -270,7 +275,6 @@ class _EditPostPageState extends State<EditPostPage> {
               controller: penulisController,
               decoration: const InputDecoration(
                 labelText: "Penulis Artikel",
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -278,7 +282,6 @@ class _EditPostPageState extends State<EditPostPage> {
               controller: isiController,
               decoration: const InputDecoration(
                 labelText: "Isi Artikel",
-                border: OutlineInputBorder(),
               ),
               maxLines: 5,
             ),
@@ -287,10 +290,8 @@ class _EditPostPageState extends State<EditPostPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.grey,
-                ),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
@@ -365,6 +366,11 @@ class _EditPostPageState extends State<EditPostPage> {
                     ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Color(0xFFE8E0D5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
                     icon: const Icon(
                       Icons.photo_library,
                     ),
@@ -400,8 +406,13 @@ class _EditPostPageState extends State<EditPostPage> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 45,
+              height: 52,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
                 onPressed: updateArtikel,
                 child: const Text("Update"),
               ),

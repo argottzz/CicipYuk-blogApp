@@ -96,12 +96,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (!mounted) return;
     if (response.statusCode == 200 || response.statusCode == 204) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Artikel berhasil dihapus')),
+        const SnackBar(content: Text('Artikel berhasil dihapus')),
       );
       Navigator.pop(context, true);
     } else {
       print('gagal hapus: ${response.statusCode}');
     }
+  }
+
+  String _inisial(String nama) {
+    final parts = nama.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
   }
 
   @override
@@ -113,122 +120,180 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: Text("Detail Artikel")),
+      return const Scaffold(
+        backgroundColor: Color(0xFFF5F1EA),
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (artikel == null) {
       return Scaffold(
-        appBar: AppBar(title: Text("Detail Artikel")),
-        body: Center(child: Text("Artikel tidak ditemukan")),
+        backgroundColor: const Color(0xFFF5F1EA),
+        appBar: AppBar(title: const Text("Post Detail")),
+        body: const Center(child: Text("Artikel tidak ditemukan")),
       );
     }
 
     final gambarUrl = gambarArtikelUrl(
       artikel!['gambar_artikel'] ?? artikel!['gambar'] ?? artikel!['image'],
     );
+    final judul = (artikel!['judul_artikel'] ?? artikel!['title'] ?? '-').toString();
+    final kategori = (artikel!['nama_kategori'] ?? artikel!['category_name'] ?? '').toString();
+    final penulis = (artikel!['penulis_artikel'] ?? '-').toString();
+    final tanggal = (artikel!['created_at'] ?? artikel!['updated_at'] ?? '').toString().split('T').first.split(' ').first;
+    final isi = (artikel!['isi_artikel'] ?? artikel!['content'] ?? '-').toString();
+    final id = artikel!['id'] ?? artikel!['id_artikel'];
+
+    Widget circleBtn(IconData icon, VoidCallback onTap, {Color iconColor = Colors.black}) {
+      return InkWell(
+        onTap: onTap,
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+          child: Icon(icon, size: 18, color: iconColor),
+        ),
+      );
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Detail Artikel"),
-        actions: [
-          IconButton(
-            icon: Icon(Icons.edit),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditPostPage(artikel: artikel),
-                ),
-              ).then((value) {
-                if (value == true) getDetail();
-              });
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              deleteArtikel(artikel!['id'] ?? artikel!['id_artikel']);
-            },
-          ),
-        ],
-      ),
+      backgroundColor: const Color(0xFFF5F1EA),
+      extendBodyBehindAppBar: true,
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Gambar artikel (DB simpan nama file, backend sajikan di /uploads)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: gambarUrl.isNotEmpty
-                  ? Image.network(
-                      gambarUrl,
-                      width: double.infinity,
-                      height: 220,
-                      fit: BoxFit.cover,
-                      gaplessPlayback: true,
-                      loadingBuilder: (c, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          height: 220,
-                          width: double.infinity,
-                          color: Colors.grey.shade200,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      },
-                      errorBuilder: (c, e, s) {
-                        print('gagal load gambar detail $gambarUrl: $e');
-                        return Container(
-                          height: 180,
-                          width: double.infinity,
-                          color: Colors.grey.shade200,
+            Stack(
+              children: [
+                SizedBox(
+                  height: 420,
+                  width: double.infinity,
+                  child: gambarUrl.isNotEmpty
+                      ? Image.network(
+                          gambarUrl,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (c, e, s) {
+                            print('gagal load gambar detail $gambarUrl: $e');
+                            return Container(
+                              color: Colors.grey.shade300,
+                              child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey.shade300,
                           child: const Icon(Icons.image, size: 48, color: Colors.grey),
-                        );
-                      },
-                    )
-                  : Container(
-                      height: 180,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(Icons.image, size: 48, color: Colors.grey),
+                        ),
+                ),
+                Container(
+                  height: 420,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.45),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.25),
+                      ],
                     ),
+                  ),
+                ),
+                SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Row(
+                      children: [
+                        InkWell(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                            child: const Icon(Icons.arrow_back_ios_new, size: 16),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          "Post Detail",
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                        const Spacer(),
+                        circleBtn(Icons.edit, () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditPostPage(artikel: artikel),
+                            ),
+                          ).then((value) {
+                            if (value == true) getDetail();
+                          });
+                        }),
+                        const SizedBox(width: 8),
+                        circleBtn(Icons.delete, () => deleteArtikel(id), iconColor: Colors.red),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              artikel!['judul_artikel'] ?? artikel!['title'] ?? '-',
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade50,
-                borderRadius: BorderRadius.circular(12),
+            Transform.translate(
+              offset: const Offset(0, -28),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      judul,
+                      style: const TextStyle(fontSize: 24, height: 1.25, fontWeight: FontWeight.w600, letterSpacing: -0.3),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundColor: const Color(0xFFF5F1EA),
+                          child: Text(_inisial(penulis), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w700)),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(penulis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                              if (tanggal.isNotEmpty)
+                                Text(tanggal, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.chevron_right, color: Colors.grey),
+                      ],
+                    ),
+                    if (kategori.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F1EA),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(kategori, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Text(
+                      isi,
+                      style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.black87),
+                    ),
+                  ],
+                ),
               ),
-              child: Text(
-                artikel!['nama_kategori'] ?? artikel!['category_name'] ?? '-',
-                style: const TextStyle(color: Colors.deepPurple, fontSize: 12),
-              ),
-            ),
-            if (artikel!['penulis_artikel'] != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                "Penulis: ${artikel!['penulis_artikel']}",
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Text(
-              artikel!['isi_artikel'] ?? artikel!['content'] ?? '-',
-              style: const TextStyle(fontSize: 14, height: 1.5),
             ),
           ],
         ),

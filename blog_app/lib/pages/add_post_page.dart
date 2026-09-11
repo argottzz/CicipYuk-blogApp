@@ -137,16 +137,24 @@ class _AddPostPageState extends State<AddPostPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Tambah Artikel")),
+      backgroundColor: const Color(0xFFF5F1EA),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text("Tambah Artikel", style: TextStyle(fontWeight: FontWeight.w700)),
+      ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const Text("CicipYuk", style: TextStyle(color: Color(0xFFE85D2A), fontSize: 13, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            const Text("New Post", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600, letterSpacing: -0.5)),
+            const SizedBox(height: 16),
             TextField(
               controller: judulController,
               decoration: const InputDecoration(
                 labelText: "Judul Artikel",
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -155,7 +163,6 @@ class _AddPostPageState extends State<AddPostPage> {
               hint: const Text("Pilih Kategori"),
               decoration: const InputDecoration(
                 labelText: "Kategori",
-                border: OutlineInputBorder(),
               ),
               items: kategori.map((item) {
                 return DropdownMenuItem<int>(
@@ -174,7 +181,6 @@ class _AddPostPageState extends State<AddPostPage> {
               controller: penulisController,
               decoration: const InputDecoration(
                 labelText: "Penulis Artikel",
-                border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -182,7 +188,6 @@ class _AddPostPageState extends State<AddPostPage> {
               controller: isiController,
               decoration: const InputDecoration(
                 labelText: "Isi Artikel",
-                border: OutlineInputBorder(),
               ),
               maxLines: 5,
             ),
@@ -192,14 +197,14 @@ class _AddPostPageState extends State<AddPostPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
-                borderRadius: BorderRadius.circular(12),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
                 children: [
                   if (pickedImage != null)
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       child: Image.file(
                         File(pickedImage!.path),
                         height: 180,
@@ -212,13 +217,18 @@ class _AddPostPageState extends State<AddPostPage> {
                       height: 120,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFFF5F1EA),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(Icons.image, size: 48, color: Colors.grey),
                     ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.black,
+                      side: const BorderSide(color: Color(0xFFE8E0D5)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
                     icon: const Icon(Icons.photo_library),
                     label: Text(pickedImage == null ? "Pilih Gambar (jpg/png/webp, max 5MB)" : "Ganti Gambar"),
                     onPressed: pickImage,
@@ -235,8 +245,13 @@ class _AddPostPageState extends State<AddPostPage> {
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
-              height: 45,
+              height: 52,
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                ),
                 onPressed: () {
                   if (judulController.text.isEmpty ||
                       isiController.text.isEmpty ||
