@@ -1,5 +1,6 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -77,14 +78,29 @@ class _AddPostPageState extends State<AddPostPage> {
         'POST',
         Uri.parse("$apiBaseUrl/api/artikel"),
       );
+      request.headers['Accept'] = 'application/json';
       request.fields['judul_artikel'] = judulController.text;
       request.fields['isi_artikel'] = isiController.text;
       request.fields['id_kategori'] = selectedKategori.toString();
       request.fields['penulis_artikel'] = penulisController.text;
 
       if (pickedImage != null) {
+        final name = pickedImage!.name.toLowerCase();
+        MediaType contentType;
+        if (name.endsWith('.png')) {
+          contentType = MediaType('image', 'png');
+        } else if (name.endsWith('.webp')) {
+          contentType = MediaType('image', 'webp');
+        } else {
+          contentType = MediaType('image', 'jpeg');
+        }
         request.files.add(
-          await http.MultipartFile.fromPath('gambar_artikel', pickedImage!.path),
+          await http.MultipartFile.fromPath(
+            'gambar_artikel',
+            pickedImage!.path,
+            filename: pickedImage!.name,
+            contentType: contentType,
+          ),
         );
       }
 

@@ -230,38 +230,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               artikel!['isi_artikel'] ?? artikel!['content'] ?? '-',
               style: const TextStyle(fontSize: 14, height: 1.5),
             ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.edit),
-                    label: const Text("Edit"),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditPostPage(artikel: artikel),
-                        ),
-                      ).then((v) {
-                        if (v == true) getDetail();
-                      });
-                    },
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    icon: const Icon(Icons.delete, color: Colors.white),
-                    label: const Text("Hapus", style: TextStyle(color: Colors.white)),
-                    onPressed: () {
-                      deleteArtikel(artikel!['id'] ?? artikel!['id_artikel']);
-                    },
-                  ),
-                ),
-              ],
-            )
           ],
         ),
       ),
