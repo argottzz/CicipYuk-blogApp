@@ -104,13 +104,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  String _inisial(String nama) {
-    final parts = nama.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -256,12 +249,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        CircleAvatar(
-                          radius: 20,
-                          backgroundColor: const Color(0xFFF5F1EA),
-                          child: Text(_inisial(penulis), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.w700)),
-                        ),
-                        const SizedBox(width: 10),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -272,7 +259,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             ],
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Colors.grey),
                       ],
                     ),
                     if (kategori.isNotEmpty) ...[

@@ -66,13 +66,6 @@ class _PostListScreenState extends State<PostListScreen> {
     return t;
   }
 
-  String _inisial(String nama) {
-    final parts = nama.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts[0][0] + parts[1][0]).toUpperCase();
-  }
-
   @override
   void initState() {
     super.initState();
@@ -192,15 +185,6 @@ class _PostListScreenState extends State<PostListScreen> {
                                 const SizedBox(height: 10),
                                 Row(
                                   children: [
-                                    CircleAvatar(
-                                      radius: 14,
-                                      backgroundColor: const Color(0xFFE8E0D5),
-                                      child: Text(
-                                        _inisial(penulis),
-                                        style: const TextStyle(fontSize: 11, color: Colors.black87),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
