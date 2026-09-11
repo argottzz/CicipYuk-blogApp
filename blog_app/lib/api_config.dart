@@ -1,9 +1,9 @@
 // Centralized API config
 // Ganti IP cukup via --dart-define=API_URL=http://IP_BARU:8000
-// Default: IP sekolah 10.2.14.97, di rumah ganti ke 192.168.x.x
+// Default: IP sekolah 10.2.14.97, di rumah ganti ke 192.168.1.5
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://10.2.14.97:8000',
+  defaultValue: 'http://192.168.1.5:8000',
 );
 
 /// Membangun URL lengkap untuk gambar artikel.

@@ -51,7 +51,6 @@ class _AddPostPageState extends State<AddPostPage> {
       imageQuality: 85,
     );
     if (image != null) {
-      // Validasi 5MB client-side
       final bytes = await image.length();
       if (bytes > 5 * 1024 * 1024) {
         if (!mounted) return;

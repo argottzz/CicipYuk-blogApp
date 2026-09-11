@@ -85,7 +85,7 @@ class _PostListScreenState extends State<PostListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Blog App"),
+        title: Text("CicipYuk"),
         actions: [
           IconButton(icon: Icon(Icons.refresh), onPressed: getArtikel),
         ],
