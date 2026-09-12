@@ -114,14 +114,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget build(BuildContext context) {
     if (isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFFF5F1EA),
-        body: Center(child: CircularProgressIndicator()),
+        backgroundColor: Color(0xFFFFF9F0),
+        body: Center(
+            child: CircularProgressIndicator(color: Color(0xFFF28C28))),
       );
     }
 
     if (artikel == null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF5F1EA),
+        backgroundColor: const Color(0xFFFFF9F0),
         appBar: AppBar(title: const Text("Post Detail")),
         body: const Center(child: Text("Artikel tidak ditemukan")),
       );
@@ -138,7 +139,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final isi = (artikel!['isi_artikel'] ?? artikel!['content'] ?? '-').toString();
     final id = artikel!['id'] ?? artikel!['id_artikel'];
 
-    Widget circleBtn(IconData icon, VoidCallback onTap, {Color iconColor = Colors.black}) {
+    Widget circleBtn(IconData icon, VoidCallback onTap, {Color iconColor = const Color(0xFF33251F)}) {
       return InkWell(
         onTap: onTap,
         child: Container(
@@ -151,7 +152,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F1EA),
+      backgroundColor: const Color(0xFFFFF9F0),
       extendBodyBehindAppBar: true,
       body: SingleChildScrollView(
         child: Column(
@@ -204,7 +205,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                             width: 38,
                             height: 38,
                             decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                            child: const Icon(Icons.arrow_back_ios_new, size: 16),
+                            child: const Icon(Icons.arrow_back_ios_new,
+                                size: 16, color: Color(0xFF33251F)),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -222,9 +224,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ).then((value) {
                             if (value == true) getDetail();
                           });
-                        }),
+                        }, iconColor: const Color(0xFFF28C28)),
                         const SizedBox(width: 8),
-                        circleBtn(Icons.delete, () => deleteArtikel(id), iconColor: Colors.red),
+                        circleBtn(Icons.delete, () => deleteArtikel(id),
+                            iconColor: const Color(0xFFF28C28)),
                       ],
                     ),
                   ),
@@ -254,7 +257,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               style: const TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.black,
+                                color: Color(0xFF33251F),
                               ),
                             ),
                           ),
@@ -270,7 +273,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ],
                     Text(
                       judul,
-                      style: const TextStyle(fontSize: 24, height: 1.25, fontWeight: FontWeight.w600, letterSpacing: -0.3),
+                      style: const TextStyle(
+                          fontSize: 24,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
+                          color: Color(0xFF33251F)),
                     ),
                     const SizedBox(height: 16),
                     Row(
@@ -279,9 +287,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(penulis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                              Text(penulis,
+                                  style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF33251F))),
                               if (tanggal.isNotEmpty)
-                                Text(tanggal, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                Text(tanggal,
+                                    style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Color(0xFF806B5D))),
                             ],
                           ),
                         ),
@@ -292,16 +307,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F1EA),
+                          color: const Color(0xFFFFD166),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Text(kategori, style: const TextStyle(fontSize: 12, color: Colors.black87)),
+                        child: Text(kategori,
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF33251F))),
                       ),
                     ],
                     const SizedBox(height: 16),
                     Text(
                       isi,
-                      style: const TextStyle(fontSize: 14, height: 1.6, color: Colors.black87),
+                      style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: Color(0xFF33251F)),
                     ),
                   ],
                 ),

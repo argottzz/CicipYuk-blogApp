@@ -14,18 +14,24 @@ class BlogApp extends StatelessWidget {
       title: 'CicipYuk',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF5F1EA),
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFE85D2A)),
+        scaffoldBackgroundColor: const Color(0xFFFFF9F0),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFF28C28),
+          primary: const Color(0xFFF28C28),
+        ),
         useMaterial3: true,
         appBarTheme: const AppBarTheme(
           centerTitle: false,
           elevation: 0,
           backgroundColor: Colors.transparent,
-          foregroundColor: Colors.black,
+          foregroundColor: Color(0xFF33251F),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           fillColor: Colors.white,
+          labelStyle: const TextStyle(color: Color(0xFF806B5D)),
+          hintStyle: const TextStyle(color: Color(0xFF806B5D)),
+          floatingLabelStyle: const TextStyle(color: Color(0xFFF28C28)),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -36,7 +42,7 @@ class BlogApp extends StatelessWidget {
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: Color(0xFFE85D2A)),
+            borderSide: const BorderSide(color: Color(0xFFF28C28)),
           ),
         ),
       ),

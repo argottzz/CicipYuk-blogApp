@@ -331,7 +331,7 @@ class _EditPostPageState extends State<EditPostPage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F1EA),
+      backgroundColor: const Color(0xFFFFF9F0),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text("Edit Artikel",
@@ -344,7 +344,7 @@ class _EditPostPageState extends State<EditPostPage> {
           children: [
             const Text("CicipYuk",
                 style: TextStyle(
-                    color: Color(0xFFE85D2A),
+                    color: Color(0xFFF28C28),
                     fontSize: 13,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
@@ -352,7 +352,8 @@ class _EditPostPageState extends State<EditPostPage> {
                 style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: -0.5)),
+                    letterSpacing: -0.5,
+                    color: Color(0xFF33251F))),
             const SizedBox(height: 16),
             TextField(
               controller: judulController,
@@ -492,9 +493,9 @@ class _EditPostPageState extends State<EditPostPage> {
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.black,
+                        foregroundColor: const Color(0xFF33251F),
                         side:
-                            const BorderSide(color: Color(0xFFE8E0D5)),
+                            const BorderSide(color: Color(0xFFF28C28)),
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20)),
                       ),
@@ -537,7 +538,7 @@ class _EditPostPageState extends State<EditPostPage> {
                 height: 52,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black,
+                    backgroundColor: const Color(0xFFF28C28),
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(24)),

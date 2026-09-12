@@ -71,7 +71,7 @@ class _PostListScreenState extends State<PostListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F1EA),
+      backgroundColor: const Color(0xFFFFF9F0),
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -81,7 +81,7 @@ class _PostListScreenState extends State<PostListScreen> {
               child: Text(
                 "CicipYuk",
                 style: TextStyle(
-                  color: Color(0xFFE85D2A),
+                  color: Color(0xFFF28C28),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -92,7 +92,7 @@ class _PostListScreenState extends State<PostListScreen> {
               child: Text(
                 "Your Culinary\nInspiration Vault",
                 style: TextStyle(
-                  color: Colors.black,
+                  color: Color(0xFF33251F),
                   fontSize: 32,
                   height: 1.1,
                   fontWeight: FontWeight.w600,
@@ -111,7 +111,7 @@ class _PostListScreenState extends State<PostListScreen> {
                           Center(
                             child: Text(
                               'Belum ada artikel',
-                              style: TextStyle(color: Colors.grey),
+                              style: TextStyle(color: Color(0xFF806B5D)),
                             ),
                           ),
                         ],
@@ -173,7 +173,7 @@ class _PostListScreenState extends State<PostListScreen> {
                                                     style: const TextStyle(
                                                       fontSize: 13,
                                                       fontWeight: FontWeight.w700,
-                                                      color: Colors.black,
+                                                      color: Color(0xFF33251F),
                                                     ),
                                                   ),
                                                 ),
@@ -199,7 +199,7 @@ class _PostListScreenState extends State<PostListScreen> {
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
                                         height: 1.3,
-                                        color: Colors.black,
+                                        color: Color(0xFF33251F),
                                       ),
                                     ),
                                     const SizedBox(height: 10),
@@ -242,7 +242,7 @@ class _PostListScreenState extends State<PostListScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFFF28C28),
         foregroundColor: Colors.white,
         shape: const CircleBorder(),
         onPressed: () {
