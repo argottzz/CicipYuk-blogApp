@@ -58,27 +58,8 @@ class _PostListScreenState extends State<PostListScreen> {
     }
   }
 
-  String _kategori(dynamic item) {
-    return (item['nama_kategori'] ?? item['category_name'] ?? '').toString();
-  }
-
-  String _timeAgo(dynamic item) {
-    final raw = (item['created_at'] ?? item['updated_at'] ?? item['tanggal'] ?? '').toString();
-    if (raw.isEmpty) return '';
-    try {
-      // Normalisasi format: "2026-09-12T10:00:00.000Z" atau "2026-09-12 10:00:00"
-      final normalized = raw.contains('T') ? raw : raw.replaceFirst(' ', 'T');
-      final date = DateTime.parse(normalized);
-      final diff = DateTime.now().difference(date);
-      if (diff.inMinutes < 1) return 'just now';
-      if (diff.inMinutes < 60) return '${diff.inMinutes} minutes ago';
-      if (diff.inHours < 24) return '${diff.inHours} hours ago';
-      if (diff.inDays < 7) return '${diff.inDays} days ago';
-    } catch (_) {
-      // abaikan, fallback ke tanggal polos di bawah
-    }
-    // fallback YYYY-MM-DD saja
-    return raw.split('T').first.split(' ').first;
+  String _penerbit(dynamic item) {
+    return (item['penerbit_artikel'] ?? item['penerbit'] ?? '').toString();
   }
 
   @override
@@ -145,8 +126,7 @@ class _PostListScreenState extends State<PostListScreen> {
                             item['gambar_artikel'] ?? item['gambar'] ?? item['image'],
                           );
                           final judul = (item['judul_artikel'] ?? item['title'] ?? '-').toString();
-                          final kategori = _kategori(item);
-                          final waktu = _timeAgo(item);
+                          final penerbit = _penerbit(item);
                           return Container(
                             margin: const EdgeInsets.only(bottom: 16),
                             decoration: BoxDecoration(
@@ -177,17 +157,17 @@ class _PostListScreenState extends State<PostListScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    // Baris atas: kategori + waktu, tanpa icon pembuat, tanpa titik 3
+                                    // Baris atas: nama penerbit + ikon verified
                                     Row(
                                       children: [
-                                        if (kategori.isNotEmpty) ...[
+                                        if (penerbit.isNotEmpty) ...[
                                           Flexible(
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Flexible(
                                                   child: Text(
-                                                    kategori,
+                                                    penerbit,
                                                     maxLines: 1,
                                                     overflow: TextOverflow.ellipsis,
                                                     style: const TextStyle(
@@ -207,15 +187,6 @@ class _PostListScreenState extends State<PostListScreen> {
                                             ),
                                           ),
                                         ],
-                                        const Spacer(),
-                                        if (waktu.isNotEmpty)
-                                          Text(
-                                            waktu,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey.shade600,
-                                            ),
-                                          ),
                                       ],
                                     ),
                                     const SizedBox(height: 8),

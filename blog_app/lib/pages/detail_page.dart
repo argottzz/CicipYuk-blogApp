@@ -133,6 +133,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final judul = (artikel!['judul_artikel'] ?? artikel!['title'] ?? '-').toString();
     final kategori = (artikel!['nama_kategori'] ?? artikel!['category_name'] ?? '').toString();
     final penulis = (artikel!['penulis_artikel'] ?? '-').toString();
+    final penerbit = (artikel!['penerbit_artikel'] ?? artikel!['penerbit'] ?? '').toString();
     final tanggal = (artikel!['created_at'] ?? artikel!['updated_at'] ?? '').toString().split('T').first.split(' ').first;
     final isi = (artikel!['isi_artikel'] ?? artikel!['content'] ?? '-').toString();
     final id = artikel!['id'] ?? artikel!['id_artikel'];
@@ -242,6 +243,31 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (penerbit.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              penerbit,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            size: 14,
+                            color: Color(0xFF2D9CDB),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Text(
                       judul,
                       style: const TextStyle(fontSize: 24, height: 1.25, fontWeight: FontWeight.w600, letterSpacing: -0.3),
