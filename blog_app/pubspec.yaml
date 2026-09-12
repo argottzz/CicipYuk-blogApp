@@ -64,6 +64,7 @@ flutter:
 
   assets:
     - assets/logo-cicipyuk.jpg
+    - assets/logo-cicipyuk-clean.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
@@ -91,13 +92,13 @@ flutter:
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
 
-# Splash screen native (simple elegan: krem + logo tengah)
+# Splash screen native (simple elegan: krem + logo clean tengah)
 flutter_native_splash:
   color: "#FFF9F0"
-  image: assets/logo-cicipyuk.jpg
+  image: assets/logo-cicipyuk-clean.png
   android_12:
     color: "#FFF9F0"
-    image: assets/logo-cicipyuk.jpg
+    image: assets/logo-cicipyuk-clean.png
 
 # Launcher icon HP (ganti logo Flutter jadi logo CicipYuk)
 flutter_launcher_icons:
