@@ -3,7 +3,7 @@
 // Default: IP sekolah 10.2.14.97, di rumah ganti ke 192.168.1.5
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://192.168.1.5:8000',
+  defaultValue: 'http://10.2.12.34:8000',
 );
 
 /// Membangun URL lengkap untuk gambar artikel.
