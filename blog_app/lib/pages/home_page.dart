@@ -59,7 +59,11 @@ class _PostListScreenState extends State<PostListScreen> {
   }
 
   String _penerbit(dynamic item) {
-    return (item['penerbit_artikel'] ?? item['penerbit'] ?? '').toString();
+    return (item['nama_penerbit'] ??
+            item['penerbit_artikel'] ??
+            item['penerbit'] ??
+            '')
+        .toString();
   }
 
   @override

@@ -23,6 +23,12 @@ class _AddPostPageState extends State<AddPostPage> {
   bool _loadingKategori = true;
   String? _kategoriError;
   int? selectedKategori;
+
+  List<dynamic> penerbit = [];
+  bool _loadingPenerbit = true;
+  String? _penerbitError;
+  int? selectedPenerbit;
+
   XFile? pickedImage;
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
@@ -36,6 +42,17 @@ class _AddPostPageState extends State<AddPostPage> {
 
   String _kategoriName(dynamic item) {
     return (item['nama_kategori'] ?? item['name'] ?? '-').toString();
+  }
+
+  int? _parsePenerbitId(dynamic item) {
+    final raw = item['id_penerbit'] ?? item['id'];
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    return int.tryParse(raw.toString());
+  }
+
+  String _penerbitName(dynamic item) {
+    return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
   }
 
   Future<void> getKategori() async {
@@ -75,6 +92,47 @@ class _AddPostPageState extends State<AddPostPage> {
       setState(() {
         _loadingKategori = false;
         _kategoriError = "Tidak bisa konek ke server";
+      });
+    }
+  }
+
+  Future<void> getPenerbit() async {
+    setState(() {
+      _loadingPenerbit = true;
+      _penerbitError = null;
+    });
+    try {
+      final response = await http.get(
+        Uri.parse("$apiBaseUrl/api/penerbit"),
+      );
+
+      if (response.statusCode == 200) {
+        var body = jsonDecode(response.body);
+        List data;
+        if (body is Map && body['data'] != null) {
+          data = (body['data'] as List?) ?? [];
+        } else if (body is List) {
+          data = body;
+        } else {
+          data = [];
+        }
+        if (!mounted) return;
+        setState(() {
+          penerbit = data;
+          _loadingPenerbit = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loadingPenerbit = false;
+          _penerbitError = "Gagal memuat penerbit (${response.statusCode})";
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingPenerbit = false;
+        _penerbitError = "Tidak bisa konek ke server";
       });
     }
   }
@@ -132,6 +190,10 @@ class _AddPostPageState extends State<AddPostPage> {
       _snack("Wajib pilih kategori");
       return;
     }
+    if (selectedPenerbit == null) {
+      _snack("Wajib pilih penerbit");
+      return;
+    }
     if (penulis.isEmpty) {
       _snack("Penulis wajib diisi");
       return;
@@ -147,17 +209,37 @@ class _AddPostPageState extends State<AddPostPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse("$apiBaseUrl/api/artikel"),
-      );
-      request.headers['Accept'] = 'application/json';
-      request.fields['judul_artikel'] = judulController.text.trim();
-      request.fields['isi_artikel'] = isiController.text.trim();
-      request.fields['id_kategori'] = selectedKategori.toString();
-      request.fields['penulis_artikel'] = penulisController.text.trim();
+      final url = Uri.parse("$apiBaseUrl/api/artikel");
+      http.Response response;
 
-      if (pickedImage != null) {
+      if (pickedImage == null) {
+        // Tanpa gambar: kirim JSON biasa.
+        // Backend Express wajib id_kategori + id_penerbit.
+        response = await http
+            .post(
+              url,
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'judul_artikel': judul,
+                'isi_artikel': isi,
+                'id_kategori': selectedKategori,
+                'id_penerbit': selectedPenerbit,
+                'penulis_artikel': penulis,
+              }),
+            )
+            .timeout(const Duration(seconds: 20));
+      } else {
+        var request = http.MultipartRequest('POST', url);
+        request.headers['Accept'] = 'application/json';
+        request.fields['judul_artikel'] = judul;
+        request.fields['isi_artikel'] = isi;
+        request.fields['id_kategori'] = selectedKategori.toString();
+        request.fields['id_penerbit'] = selectedPenerbit.toString();
+        request.fields['penulis_artikel'] = penulis;
+
         final name = pickedImage!.name.toLowerCase();
         MediaType contentType;
         if (name.endsWith('.png')) {
@@ -175,10 +257,11 @@ class _AddPostPageState extends State<AddPostPage> {
             contentType: contentType,
           ),
         );
-      }
 
-      var streamed = await request.send();
-      var response = await http.Response.fromStream(streamed);
+        var streamed =
+            await request.send().timeout(const Duration(seconds: 30));
+        response = await http.Response.fromStream(streamed);
+      }
 
       if (!mounted) return;
       if (response.statusCode == 200 || response.statusCode == 201) {
@@ -188,10 +271,7 @@ class _AddPostPageState extends State<AddPostPage> {
         Navigator.pop(context, true);
       } else {
         print("gagal tambah artikel: ${response.statusCode} ${response.body}");
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text("Gagal tambah (${response.statusCode}): ${response.body}")),
-        );
+        _snack("Gagal tambah (${response.statusCode}): ${_pesanError(response.body)}");
       }
     } catch (e) {
       print("error tambah: $e");
@@ -204,10 +284,40 @@ class _AddPostPageState extends State<AddPostPage> {
     }
   }
 
+  /// Ambil pesan validasi backend (Laravel: {message, errors:{...}})
+  /// agar SnackBar mudah dibaca user.
+  String _pesanError(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final errors = decoded['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final parts = <String>[];
+          errors.forEach((key, value) {
+            if (value is List && value.isNotEmpty) {
+              parts.add("${value.first}");
+            } else {
+              parts.add("$key: $value");
+            }
+          });
+          return parts.join(", ");
+        }
+        final msg = decoded['message'];
+        if (msg is String && msg.isNotEmpty) return msg;
+      }
+      if (body.length > 300) return "${body.substring(0, 300)}...";
+      return body.isEmpty ? "respons kosong dari server" : body;
+    } catch (_) {
+      if (body.length > 300) return "${body.substring(0, 300)}...";
+      return body.isEmpty ? "respons kosong dari server" : body;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     getKategori();
+    getPenerbit();
   }
 
   @override
@@ -239,6 +349,19 @@ class _AddPostPageState extends State<AddPostPage> {
           return DropdownMenuItem<int>(
             value: id,
             child: Text(_kategoriName(item),
+                overflow: TextOverflow.ellipsis),
+          );
+        })
+        .whereType<DropdownMenuItem<int>>()
+        .toList();
+
+    final penerbitItems = penerbit
+        .map((item) {
+          final id = _parsePenerbitId(item);
+          if (id == null) return null;
+          return DropdownMenuItem<int>(
+            value: id,
+            child: Text(_penerbitName(item),
                 overflow: TextOverflow.ellipsis),
           );
         })
@@ -301,6 +424,36 @@ class _AddPostPageState extends State<AddPostPage> {
                     ),
                     TextButton(
                         onPressed: getKategori,
+                        child: const Text("Coba lagi")),
+                  ],
+                ),
+              ],
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: selectedPenerbit,
+              isExpanded: true,
+              hint: Text(_loadingPenerbit
+                  ? "Memuat penerbit..."
+                  : "Pilih Penerbit"),
+              decoration: _field("Penerbit"),
+              items: penerbitItems,
+              onChanged: _loadingPenerbit
+                  ? null
+                  : (value) {
+                      setState(() => selectedPenerbit = value);
+                    },
+            ),
+              if (_penerbitError != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(_penerbitError!,
+                          style: const TextStyle(
+                              color: Colors.red, fontSize: 12)),
+                    ),
+                    TextButton(
+                        onPressed: getPenerbit,
                         child: const Text("Coba lagi")),
                   ],
                 ),

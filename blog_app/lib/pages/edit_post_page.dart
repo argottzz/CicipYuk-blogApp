@@ -29,6 +29,11 @@ class _EditPostPageState extends State<EditPostPage> {
   String? _kategoriError;
   int? selectedKategori;
 
+  List<dynamic> penerbit = [];
+  bool _loadingPenerbit = true;
+  String? _penerbitError;
+  int? selectedPenerbit;
+
   XFile? pickedImage;
   bool _isSubmitting = false;
 
@@ -42,6 +47,16 @@ class _EditPostPageState extends State<EditPostPage> {
 
   String _kategoriName(dynamic item) {
     return (item['nama_kategori'] ?? item['name'] ?? '-').toString();
+  }
+
+  int? _parsePenerbitId(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is int) return raw;
+    return int.tryParse(raw.toString());
+  }
+
+  String _penerbitName(dynamic item) {
+    return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
   }
 
   Future<void> getKategori() async {
@@ -84,6 +99,50 @@ class _EditPostPageState extends State<EditPostPage> {
       setState(() {
         _loadingKategori = false;
         _kategoriError = "Tidak bisa konek ke server";
+      });
+    }
+  }
+
+  Future<void> getPenerbit() async {
+    setState(() {
+      _loadingPenerbit = true;
+      _penerbitError = null;
+    });
+    try {
+      final response = await http.get(
+        Uri.parse("$apiBaseUrl/api/penerbit"),
+      );
+
+      if (response.statusCode == 200) {
+        var body = jsonDecode(response.body);
+
+        List data;
+
+        if (body is Map && body['data'] != null) {
+          data = (body['data'] as List?) ?? [];
+        } else if (body is List) {
+          data = body;
+        } else {
+          data = [];
+        }
+
+        if (!mounted) return;
+        setState(() {
+          penerbit = data;
+          _loadingPenerbit = false;
+        });
+      } else {
+        if (!mounted) return;
+        setState(() {
+          _loadingPenerbit = false;
+          _penerbitError = "Gagal memuat penerbit (${response.statusCode})";
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadingPenerbit = false;
+        _penerbitError = "Tidak bisa konek ke server";
       });
     }
   }
@@ -156,6 +215,10 @@ class _EditPostPageState extends State<EditPostPage> {
       _snack("Wajib pilih kategori");
       return;
     }
+    if (selectedPenerbit == null) {
+      _snack("Wajib pilih penerbit");
+      return;
+    }
     if (penulis.isEmpty) {
       _snack("Penulis wajib diisi");
       return;
@@ -181,19 +244,38 @@ class _EditPostPageState extends State<EditPostPage> {
 
     setState(() => _isSubmitting = true);
     try {
-      var request = http.MultipartRequest(
-        'PUT',
-        Uri.parse("$apiBaseUrl/api/artikel/$id"),
-      );
+      final url = Uri.parse("$apiBaseUrl/api/artikel/$id");
+      http.Response response;
 
-      request.headers['Accept'] = 'application/json';
+      if (pickedImage == null) {
+        // Tanpa gambar baru: PUT JSON biasa ke backend Express.
+        response = await http
+            .put(
+              url,
+              headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode({
+                'judul_artikel': judul,
+                'isi_artikel': isi,
+                'id_kategori': selectedKategori,
+                'id_penerbit': selectedPenerbit,
+                'penulis_artikel': penulis,
+              }),
+            )
+            .timeout(const Duration(seconds: 20));
+      } else {
+        // Dengan gambar: backend Express (multer) terima PUT multipart langsung.
+        var request = http.MultipartRequest('PUT', url);
 
-      request.fields['judul_artikel'] = judulController.text.trim();
-      request.fields['isi_artikel'] = isiController.text.trim();
-      request.fields['id_kategori'] = selectedKategori.toString();
-      request.fields['penulis_artikel'] = penulisController.text.trim();
+        request.headers['Accept'] = 'application/json';
+        request.fields['judul_artikel'] = judul;
+        request.fields['isi_artikel'] = isi;
+        request.fields['id_kategori'] = selectedKategori.toString();
+        request.fields['id_penerbit'] = selectedPenerbit.toString();
+        request.fields['penulis_artikel'] = penulis;
 
-      if (pickedImage != null) {
         final name = pickedImage!.name.toLowerCase();
 
         MediaType contentType;
@@ -214,17 +296,18 @@ class _EditPostPageState extends State<EditPostPage> {
             contentType: contentType,
           ),
         );
+
+        var streamed =
+            await request.send().timeout(const Duration(seconds: 30));
+
+        response = await http.Response.fromStream(
+          streamed,
+        );
       }
-
-      var streamed = await request.send();
-
-      var response = await http.Response.fromStream(
-        streamed,
-      );
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text("Artikel berhasil diupdate"),
@@ -240,7 +323,7 @@ class _EditPostPageState extends State<EditPostPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              "Gagal update (${response.statusCode}): ${response.body}",
+              "Gagal update (${response.statusCode}): ${_pesanError(response.body)}",
             ),
           ),
         );
@@ -260,11 +343,39 @@ class _EditPostPageState extends State<EditPostPage> {
     }
   }
 
+  String _pesanError(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final errors = decoded['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final parts = <String>[];
+          errors.forEach((key, value) {
+            if (value is List && value.isNotEmpty) {
+              parts.add("${value.first}");
+            } else {
+              parts.add("$key: $value");
+            }
+          });
+          return parts.join(", ");
+        }
+        final msg = decoded['message'];
+        if (msg is String && msg.isNotEmpty) return msg;
+      }
+      if (body.length > 300) return "${body.substring(0, 300)}...";
+      return body.isEmpty ? "respons kosong dari server" : body;
+    } catch (_) {
+      if (body.length > 300) return "${body.substring(0, 300)}...";
+      return body.isEmpty ? "respons kosong dari server" : body;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
     getKategori();
+    getPenerbit();
 
     judulController.text =
         (widget.artikel['judul_artikel'] ?? widget.artikel['title'] ?? '')
@@ -275,10 +386,21 @@ class _EditPostPageState extends State<EditPostPage> {
             .toString();
 
     penulisController.text =
-        (widget.artikel['penulis_artikel'] ?? '').toString();
+        (widget.artikel['penulis_artikel'] ??
+                widget.artikel['penerbit_artikel'] ??
+                '')
+            .toString();
 
     selectedKategori = _parseKategoriId(
-      widget.artikel['id_kategori'] ?? widget.artikel['category_id'],
+      widget.artikel['id_kategori'] ??
+          widget.artikel['category_id'] ??
+          widget.artikel['kategori_id'],
+    );
+
+    selectedPenerbit = _parsePenerbitId(
+      widget.artikel['id_penerbit'] ??
+          widget.artikel['penerbit_id'] ??
+          widget.artikel['idPenerbit'],
     );
   }
 
@@ -324,6 +446,30 @@ class _EditPostPageState extends State<EditPostPage> {
           return DropdownMenuItem<int>(
             value: id,
             child: Text(_kategoriName(item),
+                overflow: TextOverflow.ellipsis),
+          );
+        })
+        .whereType<DropdownMenuItem<int>>()
+        .toList();
+
+    final penerbitIds = penerbit
+        .map((item) =>
+            _parsePenerbitId(item['id_penerbit'] ?? item['id']))
+        .whereType<int>()
+        .toSet();
+    final dropdownPenerbitValue =
+        (selectedPenerbit != null && penerbitIds.contains(selectedPenerbit))
+            ? selectedPenerbit
+            : null;
+
+    final penerbitItems = penerbit
+        .map((item) {
+          final id =
+              _parsePenerbitId(item['id_penerbit'] ?? item['id']);
+          if (id == null) return null;
+          return DropdownMenuItem<int>(
+            value: id,
+            child: Text(_penerbitName(item),
                 overflow: TextOverflow.ellipsis),
           );
         })
@@ -394,6 +540,42 @@ class _EditPostPageState extends State<EditPostPage> {
               ] else if (!_loadingKategori && kategoriItems.isEmpty) ...[
                 const SizedBox(height: 6),
                 const Text("Belum ada kategori di server.",
+                    style: TextStyle(color: Colors.red, fontSize: 12)),
+              ],
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: dropdownPenerbitValue,
+              isExpanded: true,
+              hint: Text(_loadingPenerbit
+                  ? "Memuat penerbit..."
+                  : "Pilih Penerbit"),
+              decoration: _decor("Penerbit"),
+              items: penerbitItems,
+              onChanged: _loadingPenerbit
+                  ? null
+                  : (value) {
+                      setState(() {
+                        selectedPenerbit = value;
+                      });
+                    },
+            ),
+              if (_penerbitError != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(_penerbitError!,
+                          style: const TextStyle(
+                              color: Colors.red, fontSize: 12)),
+                    ),
+                    TextButton(
+                        onPressed: getPenerbit,
+                        child: const Text("Coba lagi")),
+                  ],
+                ),
+              ] else if (!_loadingPenerbit && penerbitItems.isEmpty) ...[
+                const SizedBox(height: 6),
+                const Text("Belum ada penerbit di server.",
                     style: TextStyle(color: Colors.red, fontSize: 12)),
               ],
             const SizedBox(height: 12),
