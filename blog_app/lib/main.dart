@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'pages/home_page.dart';
 
 void main() {
@@ -15,6 +16,7 @@ class BlogApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: const Color(0xFFFFF9F0),
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFF28C28),
           primary: const Color(0xFFF28C28),
