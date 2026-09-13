@@ -150,7 +150,7 @@ class _PostListScreenState extends State<PostListScreen> {
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 6, 20, 16),
               child: Text(
-                "Ruang Inspirasi\nKuliner Anda",
+                "Ruang Inspirasi\nKuliner Kamu",
                 style: TextStyle(
                   color: Color(0xFF33251F),
                   fontSize: 32,
