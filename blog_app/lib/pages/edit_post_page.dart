@@ -1,6 +1,7 @@
 ﻿import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -10,10 +11,7 @@ import '../api_config.dart';
 class EditPostPage extends StatefulWidget {
   final dynamic artikel;
 
-  const EditPostPage({
-    super.key,
-    this.artikel,
-  });
+  const EditPostPage({super.key, this.artikel});
 
   @override
   State<EditPostPage> createState() => _EditPostPageState();
@@ -40,9 +38,19 @@ class _EditPostPageState extends State<EditPostPage> {
   final ImagePicker _picker = ImagePicker();
 
   int? _parseKategoriId(dynamic raw) {
+    if (raw is Map) {
+      raw = raw['id_kategori'] ?? raw['id'] ?? raw['idKategori'];
+    }
     if (raw == null) return null;
     if (raw is int) return raw;
     return int.tryParse(raw.toString());
+  }
+
+  int? _parseKategoriIdFromItem(dynamic item) {
+    if (item is! Map) return null;
+    return _parseKategoriId(
+      item['id_kategori'] ?? item['id'] ?? item['idKategori'],
+    );
   }
 
   String _kategoriName(dynamic item) {
@@ -50,13 +58,43 @@ class _EditPostPageState extends State<EditPostPage> {
   }
 
   int? _parsePenerbitId(dynamic raw) {
+    if (raw is Map) {
+      raw = raw['id_penerbit'] ?? raw['id'] ?? raw['idPenerbit'];
+    }
     if (raw == null) return null;
     if (raw is int) return raw;
     return int.tryParse(raw.toString());
   }
 
+  int? _parsePenerbitIdFromItem(dynamic item) {
+    if (item is! Map) return null;
+    return _parsePenerbitId(
+      item['id_penerbit'] ?? item['id'] ?? item['idPenerbit'],
+    );
+  }
+
   String _penerbitName(dynamic item) {
     return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
+  }
+
+  /// Validasi form bersama (pola sama dengan AddPostPage).
+  /// Return pesan error, atau null jika valid.
+  String? _validateForm(String judul, String penulis, String isi) {
+    if (judul.isEmpty) return "Judul wajib diisi";
+    if (judul.length > 200) return "Judul maksimal 200 karakter";
+    if (selectedKategori == null) return "Wajib pilih kategori";
+    if (selectedPenerbit == null) return "Wajib pilih penerbit";
+    if (penulis.isEmpty) return "Penulis wajib diisi";
+    if (penulis.length > 100) return "Penulis maksimal 100 karakter";
+    if (isi.isEmpty) return "Isi artikel wajib diisi";
+    return null;
+  }
+
+  MediaType _mediaTypeFor(String filename) {
+    final name = filename.toLowerCase();
+    if (name.endsWith('.png')) return MediaType('image', 'png');
+    if (name.endsWith('.webp')) return MediaType('image', 'webp');
+    return MediaType('image', 'jpeg');
   }
 
   Future<void> getKategori() async {
@@ -65,9 +103,9 @@ class _EditPostPageState extends State<EditPostPage> {
       _kategoriError = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse("$apiBaseUrl/api/kategori"),
-      );
+      final response = await http
+          .get(Uri.parse("$apiBaseUrl/api/kategori"))
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         var body = jsonDecode(response.body);
@@ -94,6 +132,12 @@ class _EditPostPageState extends State<EditPostPage> {
           _kategoriError = "Gagal memuat kategori (${response.statusCode})";
         });
       }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _loadingKategori = false;
+        _kategoriError = "Request timeout - coba lagi";
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -109,9 +153,9 @@ class _EditPostPageState extends State<EditPostPage> {
       _penerbitError = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse("$apiBaseUrl/api/penerbit"),
-      );
+      final response = await http
+          .get(Uri.parse("$apiBaseUrl/api/penerbit"))
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         var body = jsonDecode(response.body);
@@ -138,6 +182,12 @@ class _EditPostPageState extends State<EditPostPage> {
           _penerbitError = "Gagal memuat penerbit (${response.statusCode})";
         });
       }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _loadingPenerbit = false;
+        _penerbitError = "Request timeout - coba lagi";
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -147,6 +197,8 @@ class _EditPostPageState extends State<EditPostPage> {
     }
   }
 
+  /// Pilih gambar dengan validasi ukuran (max 5MB) dan ekstensi.
+  /// Pola sama dengan AddPostPage.
   Future<void> pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -160,9 +212,7 @@ class _EditPostPageState extends State<EditPostPage> {
         if (!mounted) return;
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Ukuran file maksimal 5MB"),
-          ),
+          const SnackBar(content: Text("Ukuran file maksimal 5MB")),
         );
 
         return;
@@ -178,9 +228,7 @@ class _EditPostPageState extends State<EditPostPage> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              "Hanya jpg, jpeg, png, webp yang diperbolehkan",
-            ),
+            content: Text("Hanya jpg, jpeg, png, webp yang diperbolehkan"),
           ),
         );
 
@@ -203,32 +251,9 @@ class _EditPostPageState extends State<EditPostPage> {
     final judul = judulController.text.trim();
     final penulis = penulisController.text.trim();
     final isi = isiController.text.trim();
-    if (judul.isEmpty) {
-      _snack("Judul wajib diisi");
-      return;
-    }
-    if (judul.length > 200) {
-      _snack("Judul maksimal 200 karakter");
-      return;
-    }
-    if (selectedKategori == null) {
-      _snack("Wajib pilih kategori");
-      return;
-    }
-    if (selectedPenerbit == null) {
-      _snack("Wajib pilih penerbit");
-      return;
-    }
-    if (penulis.isEmpty) {
-      _snack("Penulis wajib diisi");
-      return;
-    }
-    if (penulis.length > 100) {
-      _snack("Penulis maksimal 100 karakter");
-      return;
-    }
-    if (isi.isEmpty) {
-      _snack("Isi artikel wajib diisi");
+    final validationError = _validateForm(judul, penulis, isi);
+    if (validationError != null) {
+      _snack(validationError);
       return;
     }
 
@@ -276,49 +301,32 @@ class _EditPostPageState extends State<EditPostPage> {
         request.fields['id_penerbit'] = selectedPenerbit.toString();
         request.fields['penulis_artikel'] = penulis;
 
-        final name = pickedImage!.name.toLowerCase();
-
-        MediaType contentType;
-
-        if (name.endsWith('.png')) {
-          contentType = MediaType('image', 'png');
-        } else if (name.endsWith('.webp')) {
-          contentType = MediaType('image', 'webp');
-        } else {
-          contentType = MediaType('image', 'jpeg');
-        }
-
         request.files.add(
           await http.MultipartFile.fromPath(
             'gambar_artikel',
             pickedImage!.path,
             filename: pickedImage!.name,
-            contentType: contentType,
+            contentType: _mediaTypeFor(pickedImage!.name),
           ),
         );
 
-        var streamed =
-            await request.send().timeout(const Duration(seconds: 30));
-
-        response = await http.Response.fromStream(
-          streamed,
+        var streamed = await request.send().timeout(
+          const Duration(seconds: 30),
         );
+
+        response = await http.Response.fromStream(streamed);
       }
 
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Artikel berhasil diupdate"),
-          ),
+          const SnackBar(content: Text("Artikel berhasil diupdate")),
         );
 
         Navigator.pop(context, true);
       } else {
-        print(
-          "Gagal update: ${response.statusCode} ${response.body}",
-        );
+        print("Gagal update: ${response.statusCode} ${response.body}");
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -328,16 +336,22 @@ class _EditPostPageState extends State<EditPostPage> {
           ),
         );
       }
+    } on TimeoutException {
+      print("timeout update artikel");
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Request timeout - coba lagi")),
+      );
     } catch (e) {
       print("Error update: $e");
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Error: $e"),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -414,13 +428,13 @@ class _EditPostPageState extends State<EditPostPage> {
 
   // Fix label nabrak: beri ruang vertikal + pastikan label mengambang
   // di atas input, tidak menumpuk dengan teks/hint.
-  InputDecoration _decor(String label) {
+  // Nama disamakan dengan AddPostPage (_field) agar pola duplikat mudah dibaca.
+  InputDecoration _field(String label) {
     return InputDecoration(
       labelText: label,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
       alignLabelWithHint: true,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
     );
   }
 
@@ -432,12 +446,14 @@ class _EditPostPageState extends State<EditPostPage> {
                 widget.artikel['image'])
             ?.toString();
 
-    final kategoriIds =
-        kategori.map(_parseKategoriIdFromItem).whereType<int>().toSet();
+    final kategoriIds = kategori
+        .map(_parseKategoriIdFromItem)
+        .whereType<int>()
+        .toSet();
     final dropdownValue =
         (selectedKategori != null && kategoriIds.contains(selectedKategori))
-            ? selectedKategori
-            : null;
+        ? selectedKategori
+        : null;
 
     final kategoriItems = kategori
         .map((item) {
@@ -445,32 +461,28 @@ class _EditPostPageState extends State<EditPostPage> {
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_kategoriName(item),
-                overflow: TextOverflow.ellipsis),
+            child: Text(_kategoriName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
         .toList();
 
     final penerbitIds = penerbit
-        .map((item) =>
-            _parsePenerbitId(item['id_penerbit'] ?? item['id']))
+        .map(_parsePenerbitIdFromItem)
         .whereType<int>()
         .toSet();
     final dropdownPenerbitValue =
         (selectedPenerbit != null && penerbitIds.contains(selectedPenerbit))
-            ? selectedPenerbit
-            : null;
+        ? selectedPenerbit
+        : null;
 
     final penerbitItems = penerbit
         .map((item) {
-          final id =
-              _parsePenerbitId(item['id_penerbit'] ?? item['id']);
+          final id = _parsePenerbitIdFromItem(item);
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_penerbitName(item),
-                overflow: TextOverflow.ellipsis),
+            child: Text(_penerbitName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
@@ -480,40 +492,48 @@ class _EditPostPageState extends State<EditPostPage> {
       backgroundColor: const Color(0xFFFFF9F0),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text("Edit Artikel",
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          "Edit Artikel",
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("CicipYuk",
-                style: TextStyle(
-                    color: Color(0xFFF28C28),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
+            const Text(
+              "CicipYuk",
+              style: TextStyle(
+                color: Color(0xFFF28C28),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 4),
-            const Text("Edit Post",
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.5,
-                    color: Color(0xFF33251F))),
+            const Text(
+              "Edit Post",
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+                color: Color(0xFF33251F),
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: judulController,
               textInputAction: TextInputAction.next,
-              decoration: _decor("Judul Artikel"),
+              decoration: _field("Judul Artikel"),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               initialValue: dropdownValue,
               isExpanded: true,
-              hint: Text(_loadingKategori
-                  ? "Memuat kategori..."
-                  : "Pilih Kategori"),
-              decoration: _decor("Kategori"),
+              hint: Text(
+                _loadingKategori ? "Memuat kategori..." : "Pilih Kategori",
+              ),
+              decoration: _field("Kategori"),
               items: kategoriItems,
               onChanged: _loadingKategori
                   ? null
@@ -523,33 +543,37 @@ class _EditPostPageState extends State<EditPostPage> {
                       });
                     },
             ),
-              if (_kategoriError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(_kategoriError!,
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 12)),
+            if (_kategoriError != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _kategoriError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
-                    TextButton(
-                        onPressed: getKategori,
-                        child: const Text("Coba lagi")),
-                  ],
-                ),
-              ] else if (!_loadingKategori && kategoriItems.isEmpty) ...[
-                const SizedBox(height: 6),
-                const Text("Belum ada kategori di server.",
-                    style: TextStyle(color: Colors.red, fontSize: 12)),
-              ],
+                  ),
+                  TextButton(
+                    onPressed: getKategori,
+                    child: const Text("Coba lagi"),
+                  ),
+                ],
+              ),
+            ] else if (!_loadingKategori && kategoriItems.isEmpty) ...[
+              const SizedBox(height: 6),
+              const Text(
+                "Belum ada kategori di server.",
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               initialValue: dropdownPenerbitValue,
               isExpanded: true,
-              hint: Text(_loadingPenerbit
-                  ? "Memuat penerbit..."
-                  : "Pilih Penerbit"),
-              decoration: _decor("Penerbit"),
+              hint: Text(
+                _loadingPenerbit ? "Memuat penerbit..." : "Pilih Penerbit",
+              ),
+              decoration: _field("Penerbit"),
               items: penerbitItems,
               onChanged: _loadingPenerbit
                   ? null
@@ -559,201 +583,190 @@ class _EditPostPageState extends State<EditPostPage> {
                       });
                     },
             ),
-              if (_penerbitError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(_penerbitError!,
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 12)),
+            if (_penerbitError != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _penerbitError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
-                    TextButton(
-                        onPressed: getPenerbit,
-                        child: const Text("Coba lagi")),
-                  ],
-                ),
-              ] else if (!_loadingPenerbit && penerbitItems.isEmpty) ...[
-                const SizedBox(height: 6),
-                const Text("Belum ada penerbit di server.",
-                    style: TextStyle(color: Colors.red, fontSize: 12)),
-              ],
+                  ),
+                  TextButton(
+                    onPressed: getPenerbit,
+                    child: const Text("Coba lagi"),
+                  ),
+                ],
+              ),
+            ] else if (!_loadingPenerbit && penerbitItems.isEmpty) ...[
+              const SizedBox(height: 6),
+              const Text(
+                "Belum ada penerbit di server.",
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: penulisController,
               textInputAction: TextInputAction.next,
               textCapitalization: TextCapitalization.words,
-              decoration: _decor("Penulis Artikel"),
+              decoration: _field("Penulis Artikel"),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: isiController,
               maxLines: 5,
               textInputAction: TextInputAction.newline,
-              decoration: _decor("Isi Artikel"),
+              decoration: _field("Isi Artikel"),
             ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (pickedImage != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          File(pickedImage!.path),
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    else if (existingGambar != null &&
-                        existingGambar.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          gambarArtikelUrl(existingGambar),
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
-                          loadingBuilder: (
-                            c,
-                            child,
-                            progress,
-                          ) {
-                            if (progress == null) {
-                              return child;
-                            }
-
-                            return Container(
-                              height: 180,
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          },
-                          errorBuilder: (c, e, s) {
-                            print(
-                              'Gagal load gambar edit '
-                              '${gambarArtikelUrl(existingGambar)}: $e',
-                            );
-
-                            return Container(
-                              height: 120,
-                              color: Colors.grey.shade200,
-                              child: const Icon(
-                                Icons.image,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                            );
-                          },
-                        ),
-                      )
-                    else
-                      Container(
-                        height: 120,
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (pickedImage != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        File(pickedImage!.path),
+                        height: 180,
                         width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.image,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
+                        fit: BoxFit.cover,
                       ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF33251F),
-                        side:
-                            const BorderSide(color: Color(0xFFF28C28)),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                      ),
-                      icon: const Icon(
-                        Icons.photo_library,
-                      ),
-                      label: Text(
-                        pickedImage == null &&
-                                (existingGambar == null ||
-                                    existingGambar.isEmpty)
-                            ? "Pilih Gambar (jpg/png/webp, max 5MB)"
-                            : "Ganti Gambar (opsional)",
-                      ),
-                      onPressed: pickImage,
-                    ),
-                    if (pickedImage != null)
-                      TextButton.icon(
-                        icon: const Icon(
-                          Icons.delete,
-                          color: Colors.red,
-                        ),
-                        label: const Text(
-                          "Hapus Gambar Baru",
-                          style: TextStyle(
-                            color: Colors.red,
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            pickedImage = null;
-                          });
+                    )
+                  else if (existingGambar != null && existingGambar.isNotEmpty)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        gambarArtikelUrl(existingGambar),
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        loadingBuilder: (c, child, progress) {
+                          if (progress == null) {
+                            return child;
+                          }
+
+                          return Container(
+                            height: 180,
+                            color: Colors.grey.shade200,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          );
+                        },
+                        errorBuilder: (c, e, s) {
+                          print(
+                            'Gagal load gambar edit '
+                            '${gambarArtikelUrl(existingGambar)}: $e',
+                          );
+
+                          return Container(
+                            height: 120,
+                            color: Colors.grey.shade200,
+                            child: const Icon(
+                              Icons.image,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                          );
                         },
                       ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF28C28),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
+                    )
+                  else
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.image,
+                        size: 48,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF33251F),
+                      side: const BorderSide(color: Color(0xFFF28C28)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(
+                      pickedImage == null &&
+                              (existingGambar == null || existingGambar.isEmpty)
+                          ? "Pilih Gambar"
+                          : "Ganti Gambar",
+                    ),
+                    onPressed: pickImage,
                   ),
-                  onPressed: _isSubmitting ? null : updateArtikel,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text("Update",
-                          style: TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 15)),
-                ),
+                  if (pickedImage != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text(
+                        "Hapus Gambar Baru",
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          pickedImage = null;
+                        });
+                      },
+                    ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF28C28),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                onPressed: _isSubmitting ? null : updateArtikel,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        "Update",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-  int? _parseKategoriIdFromItem(dynamic item) {
-    if (item is! Map) return null;
-    return _parseKategoriId(
-        item['id_kategori'] ?? item['id'] ?? item['idKategori']);
   }
 }
 
 class EditArtikelPage extends EditPostPage {
-  const EditArtikelPage({
-    super.key,
-    required super.artikel,
-  });
+  const EditArtikelPage({super.key, required super.artikel});
 }

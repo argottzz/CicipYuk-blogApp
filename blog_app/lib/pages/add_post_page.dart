@@ -1,6 +1,7 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
@@ -33,26 +34,64 @@ class _AddPostPageState extends State<AddPostPage> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
 
-  int? _parseKategoriId(dynamic item) {
-    final raw = item['id_kategori'] ?? item['id'];
+  int? _parseKategoriId(dynamic raw) {
+    if (raw is Map) {
+      raw = raw['id_kategori'] ?? raw['id'] ?? raw['idKategori'];
+    }
     if (raw == null) return null;
     if (raw is int) return raw;
     return int.tryParse(raw.toString());
+  }
+
+  int? _parseKategoriIdFromItem(dynamic item) {
+    if (item is! Map) return null;
+    return _parseKategoriId(
+      item['id_kategori'] ?? item['id'] ?? item['idKategori'],
+    );
   }
 
   String _kategoriName(dynamic item) {
     return (item['nama_kategori'] ?? item['name'] ?? '-').toString();
   }
 
-  int? _parsePenerbitId(dynamic item) {
-    final raw = item['id_penerbit'] ?? item['id'];
+  int? _parsePenerbitId(dynamic raw) {
+    if (raw is Map) {
+      raw = raw['id_penerbit'] ?? raw['id'] ?? raw['idPenerbit'];
+    }
     if (raw == null) return null;
     if (raw is int) return raw;
     return int.tryParse(raw.toString());
   }
 
+  int? _parsePenerbitIdFromItem(dynamic item) {
+    if (item is! Map) return null;
+    return _parsePenerbitId(
+      item['id_penerbit'] ?? item['id'] ?? item['idPenerbit'],
+    );
+  }
+
   String _penerbitName(dynamic item) {
     return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
+  }
+
+  /// Validasi form bersama (pola sama dengan EditPostPage).
+  /// Return pesan error, atau null jika valid.
+  String? _validateForm(String judul, String penulis, String isi) {
+    if (judul.isEmpty) return "Judul wajib diisi";
+    if (judul.length > 200) return "Judul maksimal 200 karakter";
+    if (selectedKategori == null) return "Wajib pilih kategori";
+    if (selectedPenerbit == null) return "Wajib pilih penerbit";
+    if (penulis.isEmpty) return "Penulis wajib diisi";
+    if (penulis.length > 100) return "Penulis maksimal 100 karakter";
+    if (isi.isEmpty) return "Isi artikel wajib diisi";
+    return null;
+  }
+
+  MediaType _mediaTypeFor(String filename) {
+    final name = filename.toLowerCase();
+    if (name.endsWith('.png')) return MediaType('image', 'png');
+    if (name.endsWith('.webp')) return MediaType('image', 'webp');
+    return MediaType('image', 'jpeg');
   }
 
   Future<void> getKategori() async {
@@ -61,9 +100,9 @@ class _AddPostPageState extends State<AddPostPage> {
       _kategoriError = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse("$apiBaseUrl/api/kategori"),
-      );
+      final response = await http
+          .get(Uri.parse("$apiBaseUrl/api/kategori"))
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         var body = jsonDecode(response.body);
@@ -87,6 +126,12 @@ class _AddPostPageState extends State<AddPostPage> {
           _kategoriError = "Gagal memuat kategori (${response.statusCode})";
         });
       }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _loadingKategori = false;
+        _kategoriError = "Request timeout - coba lagi";
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -102,9 +147,9 @@ class _AddPostPageState extends State<AddPostPage> {
       _penerbitError = null;
     });
     try {
-      final response = await http.get(
-        Uri.parse("$apiBaseUrl/api/penerbit"),
-      );
+      final response = await http
+          .get(Uri.parse("$apiBaseUrl/api/penerbit"))
+          .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         var body = jsonDecode(response.body);
@@ -128,6 +173,12 @@ class _AddPostPageState extends State<AddPostPage> {
           _penerbitError = "Gagal memuat penerbit (${response.statusCode})";
         });
       }
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _loadingPenerbit = false;
+        _penerbitError = "Request timeout - coba lagi";
+      });
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -137,6 +188,8 @@ class _AddPostPageState extends State<AddPostPage> {
     }
   }
 
+  /// Pilih gambar dengan validasi ukuran (max 5MB) dan ekstensi.
+  /// Pola sama dengan EditPostPage.
   Future<void> pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -159,7 +212,8 @@ class _AddPostPageState extends State<AddPostPage> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text("Hanya jpg, jpeg, png, webp yang diperbolehkan")),
+            content: Text("Hanya jpg, jpeg, png, webp yang diperbolehkan"),
+          ),
         );
         return;
       }
@@ -178,32 +232,9 @@ class _AddPostPageState extends State<AddPostPage> {
     final judul = judulController.text.trim();
     final penulis = penulisController.text.trim();
     final isi = isiController.text.trim();
-    if (judul.isEmpty) {
-      _snack("Judul wajib diisi");
-      return;
-    }
-    if (judul.length > 200) {
-      _snack("Judul maksimal 200 karakter");
-      return;
-    }
-    if (selectedKategori == null) {
-      _snack("Wajib pilih kategori");
-      return;
-    }
-    if (selectedPenerbit == null) {
-      _snack("Wajib pilih penerbit");
-      return;
-    }
-    if (penulis.isEmpty) {
-      _snack("Penulis wajib diisi");
-      return;
-    }
-    if (penulis.length > 100) {
-      _snack("Penulis maksimal 100 karakter");
-      return;
-    }
-    if (isi.isEmpty) {
-      _snack("Isi artikel wajib diisi");
+    final validationError = _validateForm(judul, penulis, isi);
+    if (validationError != null) {
+      _snack(validationError);
       return;
     }
 
@@ -240,26 +271,18 @@ class _AddPostPageState extends State<AddPostPage> {
         request.fields['id_penerbit'] = selectedPenerbit.toString();
         request.fields['penulis_artikel'] = penulis;
 
-        final name = pickedImage!.name.toLowerCase();
-        MediaType contentType;
-        if (name.endsWith('.png')) {
-          contentType = MediaType('image', 'png');
-        } else if (name.endsWith('.webp')) {
-          contentType = MediaType('image', 'webp');
-        } else {
-          contentType = MediaType('image', 'jpeg');
-        }
         request.files.add(
           await http.MultipartFile.fromPath(
             'gambar_artikel',
             pickedImage!.path,
             filename: pickedImage!.name,
-            contentType: contentType,
+            contentType: _mediaTypeFor(pickedImage!.name),
           ),
         );
 
-        var streamed =
-            await request.send().timeout(const Duration(seconds: 30));
+        var streamed = await request.send().timeout(
+          const Duration(seconds: 30),
+        );
         response = await http.Response.fromStream(streamed);
       }
 
@@ -271,14 +294,22 @@ class _AddPostPageState extends State<AddPostPage> {
         Navigator.pop(context, true);
       } else {
         print("gagal tambah artikel: ${response.statusCode} ${response.body}");
-        _snack("Gagal tambah (${response.statusCode}): ${_pesanError(response.body)}");
+        _snack(
+          "Gagal tambah (${response.statusCode}): ${_pesanError(response.body)}",
+        );
       }
+    } on TimeoutException {
+      print("timeout tambah artikel");
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Request timeout - coba lagi")),
+      );
     } catch (e) {
       print("error tambah: $e");
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: $e")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Error: $e")));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -335,8 +366,7 @@ class _AddPostPageState extends State<AddPostPage> {
       labelText: label,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
       alignLabelWithHint: true,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
     );
   }
 
@@ -344,12 +374,11 @@ class _AddPostPageState extends State<AddPostPage> {
   Widget build(BuildContext context) {
     final kategoriItems = kategori
         .map((item) {
-          final id = _parseKategoriId(item);
+          final id = _parseKategoriIdFromItem(item);
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_kategoriName(item),
-                overflow: TextOverflow.ellipsis),
+            child: Text(_kategoriName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
@@ -357,12 +386,11 @@ class _AddPostPageState extends State<AddPostPage> {
 
     final penerbitItems = penerbit
         .map((item) {
-          final id = _parsePenerbitId(item);
+          final id = _parsePenerbitIdFromItem(item);
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_penerbitName(item),
-                overflow: TextOverflow.ellipsis),
+            child: Text(_penerbitName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
@@ -372,26 +400,34 @@ class _AddPostPageState extends State<AddPostPage> {
       backgroundColor: const Color(0xFFFFF9F0),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text("Tambah Artikel",
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          "Tambah Artikel",
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("CicipYuk",
-                style: TextStyle(
-                    color: Color(0xFFF28C28),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600)),
+            const Text(
+              "CicipYuk",
+              style: TextStyle(
+                color: Color(0xFFF28C28),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 4),
-            const Text("New Post",
-                style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.5,
-                    color: Color(0xFF33251F))),
+            const Text(
+              "New Post",
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -0.5,
+                color: Color(0xFF33251F),
+              ),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: judulController,
@@ -402,9 +438,9 @@ class _AddPostPageState extends State<AddPostPage> {
             DropdownButtonFormField<int>(
               initialValue: selectedKategori,
               isExpanded: true,
-              hint: Text(_loadingKategori
-                  ? "Memuat kategori..."
-                  : "Pilih Kategori"),
+              hint: Text(
+                _loadingKategori ? "Memuat kategori..." : "Pilih Kategori",
+              ),
               decoration: _field("Kategori"),
               items: kategoriItems,
               onChanged: _loadingKategori
@@ -413,28 +449,30 @@ class _AddPostPageState extends State<AddPostPage> {
                       setState(() => selectedKategori = value);
                     },
             ),
-              if (_kategoriError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(_kategoriError!,
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 12)),
+            if (_kategoriError != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _kategoriError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
-                    TextButton(
-                        onPressed: getKategori,
-                        child: const Text("Coba lagi")),
-                  ],
-                ),
-              ],
+                  ),
+                  TextButton(
+                    onPressed: getKategori,
+                    child: const Text("Coba lagi"),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
               initialValue: selectedPenerbit,
               isExpanded: true,
-              hint: Text(_loadingPenerbit
-                  ? "Memuat penerbit..."
-                  : "Pilih Penerbit"),
+              hint: Text(
+                _loadingPenerbit ? "Memuat penerbit..." : "Pilih Penerbit",
+              ),
               decoration: _field("Penerbit"),
               items: penerbitItems,
               onChanged: _loadingPenerbit
@@ -443,21 +481,23 @@ class _AddPostPageState extends State<AddPostPage> {
                       setState(() => selectedPenerbit = value);
                     },
             ),
-              if (_penerbitError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(_penerbitError!,
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 12)),
+            if (_penerbitError != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _penerbitError!,
+                      style: const TextStyle(color: Colors.red, fontSize: 12),
                     ),
-                    TextButton(
-                        onPressed: getPenerbit,
-                        child: const Text("Coba lagi")),
-                  ],
-                ),
-              ],
+                  ),
+                  TextButton(
+                    onPressed: getPenerbit,
+                    child: const Text("Coba lagi"),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             TextField(
               controller: penulisController,
@@ -472,88 +512,97 @@ class _AddPostPageState extends State<AddPostPage> {
               textInputAction: TextInputAction.newline,
               decoration: _field("Isi Artikel"),
             ),
-              const SizedBox(height: 12),
-              // Image picker
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    if (pickedImage != null)
-                      ClipRRect(
+            const SizedBox(height: 12),
+            // Image picker
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                children: [
+                  if (pickedImage != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.file(
+                        File(pickedImage!.path),
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    )
+                  else
+                    Container(
+                      height: 120,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF9F0),
                         borderRadius: BorderRadius.circular(12),
-                        child: Image.file(
-                          File(pickedImage!.path),
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
+                      ),
+                      child: const Icon(
+                        Icons.image,
+                        size: 48,
+                        color: Color(0xFF806B5D),
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF33251F),
+                      side: const BorderSide(color: Color(0xFFF28C28)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                    ),
+                    icon: const Icon(Icons.photo_library),
+                    label: Text(
+                      pickedImage == null
+                          ? "Pilih Gambar (jpg/png/webp, max 5MB)"
+                          : "Ganti Gambar",
+                    ),
+                    onPressed: pickImage,
+                  ),
+                  if (pickedImage != null)
+                    TextButton.icon(
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      label: const Text(
+                        "Hapus Gambar",
+                        style: TextStyle(color: Colors.red),
+                      ),
+                      onPressed: () => setState(() => pickedImage = null),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF28C28),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                ),
+                onPressed: _isSubmitting ? null : tambahArtikel,
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
                         ),
                       )
-                    else
-                      Container(
-                        height: 120,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFF9F0),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.image,
-                            size: 48, color: Color(0xFF806B5D)),
-                      ),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF33251F),
-                        side:
-                            const BorderSide(color: Color(0xFFF28C28)),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20)),
-                      ),
-                      icon: const Icon(Icons.photo_library),
-                      label: Text(pickedImage == null
-                          ? "Pilih Gambar (jpg/png/webp, max 5MB)"
-                          : "Ganti Gambar"),
-                      onPressed: pickImage,
-                    ),
-                    if (pickedImage != null)
-                      TextButton.icon(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        label: const Text("Hapus Gambar",
-                            style: TextStyle(color: Colors.red)),
-                        onPressed: () =>
-                            setState(() => pickedImage = null),
-                      ),
-                  ],
-                ),
+                    : const Text("Simpan"),
               ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFF28C28),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24)),
-                  ),
-                  onPressed: _isSubmitting ? null : tambahArtikel,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text("Simpan"),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
+        ),
       ),
     );
   }
