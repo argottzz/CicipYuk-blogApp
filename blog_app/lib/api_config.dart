@@ -2,119 +2,185 @@ import 'dart:convert';
 
 import 'package:http_parser/http_parser.dart';
 
-// Centralized API config
-// Ganti IP cukup via --dart-define=API_URL=http://IP_BARU:8000
-// Default: IP sekolah 10.2.14.97, di rumah ganti ke 192.168.1.5
+// File ini menyimpan semua pengaturan API di satu tempat.
+// Tujuannya supaya kalau IP server ganti, cukup ganti di satu tempat.
+//
+// Cara ganti IP saat jalan:
+//   flutter run --dart-define=API_URL=http://IP_BARU:8000
+// Kalau tidak diisi, dipakai alamat default di bawah ini.
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
   defaultValue: 'http://192.168.1.5:8000',
 );
 
-/// Membangun URL lengkap untuk gambar artikel.
-///
-/// Database hanya menyimpan nama file (mis. "seblak.jpg"), sedangkan
-/// backend menyajikan file upload dari folder /uploads, jadi:
-///   "seblak.jpg"  ->  "$apiBaseUrl/uploads/seblak.jpg"
-///
-/// Tetap kompatibel kalau suatu saat bentuk data di DB berubah:
-/// - null / string kosong -> '' (UI menampilkan placeholder)
-/// - URL lengkap          -> dipakai apa adanya
-/// - diawali "/"          -> dianggap path dari root server
-/// - diawali "uploads/"   -> tidak di-dobel prefixnya
+// Langkah membuat URL gambar:
+// Database hanya menyimpan nama file, contoh: "seblak.jpg"
+// Sedangkan file aslinya ada di folder /uploads di server.
+// Jadi "seblak.jpg" harus jadi "http://IP:8000/uploads/seblak.jpg"
 String gambarArtikelUrl(dynamic gambar) {
-  if (gambar == null) return '';
-  var g = gambar.toString().trim().replaceAll('\\', '/');
-  while (g.startsWith('./')) {
-    g = g.substring(2);
+  // 1. Kalau kosong, kembalikan teks kosong.
+  // Nanti di layar akan diganti gambar placeholder.
+  if (gambar == null) {
+    return '';
   }
-  // buang slash ganda di depan, tapi sisakan satu untuk path root
-  while (g.startsWith('//')) {
-    g = g.substring(1);
+
+  String namaFile = gambar.toString().trim();
+
+  // 2. Kalau kosong atau tulisan "null", anggap tidak ada gambar.
+  if (namaFile.isEmpty || namaFile.toLowerCase() == 'null') {
+    return '';
   }
-  if (g.isEmpty || g.toLowerCase() == 'null') return '';
-  if (g.startsWith('http://') || g.startsWith('https://')) return g;
-  if (g.startsWith('/')) return '$apiBaseUrl$g';
-  if (g.toLowerCase().startsWith('uploads/')) return '$apiBaseUrl/$g';
-  return '$apiBaseUrl/uploads/$g';
+
+  // 3. Kalau sudah berupa link lengkap, pakai apa adanya.
+  if (namaFile.startsWith('http://') || namaFile.startsWith('https://')) {
+    return namaFile;
+  }
+
+  // 4. Kalau sudah diawali "uploads/", tinggal tempel alamat server.
+  if (namaFile.toLowerCase().startsWith('uploads/')) {
+    return '$apiBaseUrl/$namaFile';
+  }
+
+  // 5. Kalau diawali "/", itu artinya path dari root server.
+  if (namaFile.startsWith('/')) {
+    return '$apiBaseUrl$namaFile';
+  }
+
+  // 6. Sisanya berarti nama file biasa, simpan di folder /uploads.
+  return '$apiBaseUrl/uploads/$namaFile';
 }
 
-/// Helper bersama Add/Edit (Extract Helper in-place, tanpa file baru).
-/// Dipindah ke sini agar tidak duplikat di add_post_page & edit_post_page.
-
+// Ambil id kategori dari data server.
+// Bentuk datanya kadang beda-beda: bisa angka, bisa teks, bisa Map.
+// Contoh Map: {"id": 1, "nama_kategori": "Kuliner"}
 int? parseKategoriId(dynamic raw) {
+  // Kalau datanya Map, ambil dulu isi id-nya.
   if (raw is Map) {
-    raw = raw['id_kategori'] ?? raw['id'] ?? raw['idKategori'];
+    raw = raw['id_kategori'] ?? raw['id'];
   }
-  if (raw == null) return null;
-  if (raw is int) return raw;
+
+  if (raw == null) {
+    return null;
+  }
+
+  // Kalau sudah angka, langsung pakai.
+  if (raw is int) {
+    return raw;
+  }
+
+  // Kalau teks seperti "1", ubah jadi angka 1.
   return int.tryParse(raw.toString());
 }
 
+// Ambil id kategori dari satu baris data kategori.
 int? parseKategoriIdFromItem(dynamic item) {
-  if (item is! Map) return null;
-  return parseKategoriId(
-    item['id_kategori'] ?? item['id'] ?? item['idKategori'],
-  );
+  if (item is! Map) {
+    return null;
+  }
+  return parseKategoriId(item);
 }
 
+// Ambil nama kategori untuk ditampilkan di dropdown.
 String kategoriName(dynamic item) {
-  if (item is! Map) return '-';
-  return (item['nama_kategori'] ?? item['name'] ?? '-').toString();
+  if (item is! Map) {
+    return '-';
+  }
+  Object? nama = item['nama_kategori'] ?? item['name'];
+  if (nama == null) {
+    return '-';
+  }
+  return nama.toString();
 }
 
+// Ambil id penerbit, caranya sama persis seperti kategori.
 int? parsePenerbitId(dynamic raw) {
   if (raw is Map) {
-    raw = raw['id_penerbit'] ?? raw['id'] ?? raw['idPenerbit'];
+    raw = raw['id_penerbit'] ?? raw['id'];
   }
-  if (raw == null) return null;
-  if (raw is int) return raw;
+
+  if (raw == null) {
+    return null;
+  }
+
+  if (raw is int) {
+    return raw;
+  }
+
   return int.tryParse(raw.toString());
 }
 
+// Ambil id penerbit dari satu baris data penerbit.
 int? parsePenerbitIdFromItem(dynamic item) {
-  if (item is! Map) return null;
-  return parsePenerbitId(
-    item['id_penerbit'] ?? item['id'] ?? item['idPenerbit'],
-  );
+  if (item is! Map) {
+    return null;
+  }
+  return parsePenerbitId(item);
 }
 
+// Ambil nama penerbit untuk ditampilkan di dropdown.
 String penerbitName(dynamic item) {
-  if (item is! Map) return '-';
-  return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
+  if (item is! Map) {
+    return '-';
+  }
+  Object? nama = item['nama_penerbit'] ?? item['name'];
+  if (nama == null) {
+    return '-';
+  }
+  return nama.toString();
 }
 
+// Tentukan tipe file gambar untuk dikirim ke server.
+// Server butuh tahu ini gambar jenis apa: jpeg, png, atau webp.
 MediaType mediaTypeForImage(String filename) {
-  final name = filename.toLowerCase();
-  if (name.endsWith('.png')) return MediaType('image', 'png');
-  if (name.endsWith('.webp')) return MediaType('image', 'webp');
+  String nama = filename.toLowerCase();
+
+  if (nama.endsWith('.png')) {
+    return MediaType('image', 'png');
+  }
+
+  if (nama.endsWith('.webp')) {
+    return MediaType('image', 'webp');
+  }
+
+  // jpg dan jpeg dianggap sama: jpeg.
   return MediaType('image', 'jpeg');
 }
 
-/// Ambil pesan validasi backend (Laravel: {message, errors:{...}})
-/// agar SnackBar mudah dibaca user. Dipakai Add/Edit/Detail.
+// Baca pesan error dari server supaya mudah dipahami.
+// Server (Laravel) biasanya mengirim seperti ini:
+//   {"message": "...", "errors": {"judul_artikel": ["wajib diisi"]}}
 String pesanErrorBackend(String body) {
   try {
-    final decoded = jsonDecode(body);
-    if (decoded is Map) {
-      final errors = decoded['errors'];
-      if (errors is Map && errors.isNotEmpty) {
-        final parts = <String>[];
-        errors.forEach((key, value) {
-          if (value is List && value.isNotEmpty) {
-            parts.add('${value.first}');
-          } else {
-            parts.add('$key: $value');
-          }
-        });
-        return parts.join(', ');
-      }
-      final msg = decoded['message'];
-      if (msg is String && msg.isNotEmpty) return msg;
+    dynamic decoded = jsonDecode(body);
+
+    // Kalau bukan Map, berarti bukan format Laravel. Tampilkan apa adanya.
+    if (decoded is! Map) {
+      return body;
     }
-    if (body.length > 300) return '${body.substring(0, 300)}...';
-    return body.isEmpty ? 'respons kosong dari server' : body;
-  } catch (_) {
-    if (body.length > 300) return '${body.substring(0, 300)}...';
+
+    // 1. Utamakan isi "errors" karena paling jelas.
+    dynamic errors = decoded['errors'];
+    if (errors is Map && errors.isNotEmpty) {
+      List<String> pesan = [];
+      errors.forEach((key, value) {
+        if (value is List && value.isNotEmpty) {
+          pesan.add(value.first.toString());
+        } else {
+          pesan.add('$key: $value');
+        }
+      });
+      return pesan.join(', ');
+    }
+
+    // 2. Kalau tidak ada "errors", pakai "message".
+    dynamic msg = decoded['message'];
+    if (msg is String && msg.isNotEmpty) {
+      return msg;
+    }
+
+    return body;
+  } catch (e) {
+    // Kalau body bukan JSON, tampilkan apa adanya.
     return body.isEmpty ? 'respons kosong dari server' : body;
   }
 }

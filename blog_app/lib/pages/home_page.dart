@@ -1,12 +1,15 @@
-﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../api_config.dart';
 import 'add_post_page.dart';
 import 'detail_page.dart';
 
+// Halaman 1: Daftar Artikel.
+// Ini halaman pertama yang dibuka aplikasi.
 class PostListScreen extends StatefulWidget {
   const PostListScreen({super.key});
 
@@ -15,96 +18,103 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  final List<dynamic> artikel = [];
-  bool _isLoading = true;
-  String? _errorMessage;
+  // 1. Variabel untuk menyimpan data.
+  // List<dynamic> artinya list yang isinya Map dari server.
+  List<dynamic> artikel = [];
 
+  // 2. Status layar: lagi loading atau ada error.
+  bool isLoading = true;
+  String? pesanError;
+
+  // 3. Ambil daftar artikel dari server.
+  // Polanya sama seperti getProduct() di latihan:
+  // http.get -> cek status 200 -> jsonDecode -> setState.
   Future<void> getArtikel() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
-    } else {
-      _isLoading = true;
-      _errorMessage = null;
-    }
+    // Tampilkan loading, hapus error lama.
+    setState(() {
+      isLoading = true;
+      pesanError = null;
+    });
+
     try {
+      // Minta data ke server. Tunggu maksimal 15 detik.
       final response = await http
-          .get(Uri.parse("$apiBaseUrl/api/artikel"))
+          .get(Uri.parse('$apiBaseUrl/api/artikel'))
           .timeout(const Duration(seconds: 15));
 
+      // Kalau halaman sudah ditutup, berhenti di sini.
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        // handle 2 bentuk: langsung List atau {data: [...]}
-        final List data;
+        // Ubah teks JSON jadi data Dart.
+        dynamic body = jsonDecode(response.body);
+
+        // Server kadang mengirim langsung List [...],
+        // kadang mengirim Map {"data": [...]}.
+        // Kita tangani dua-duanya.
+        List dataBaru = [];
         if (body is Map && body['data'] != null) {
-          data = body['data'];
+          dataBaru = body['data'];
         } else if (body is List) {
-          data = body;
-        } else {
-          data = [];
+          dataBaru = body;
         }
-        if (!mounted) return;
+
+        // Simpan ke variabel artikel, matikan loading.
         setState(() {
-          artikel
-            ..clear()
-            ..addAll(data);
-          _isLoading = false;
+          artikel.clear();
+          artikel.addAll(dataBaru);
+          isLoading = false;
         });
-        if (data.isNotEmpty) {
-          print("contoh gambar_artikel: ${data.first['gambar_artikel']}");
-          print(
-            "contoh URL gambar: ${gambarArtikelUrl(data.first['gambar_artikel'])}",
-          );
-        }
       } else {
-        print("gagal ambil data artikel: ${response.statusCode}");
-        if (!mounted) return;
+        // Kalau status bukan 200, tampilkan pesan error.
         setState(() {
-          _isLoading = false;
-          _errorMessage =
+          isLoading = false;
+          pesanError =
               'Gagal ambil data: ${response.statusCode} - cek API_URL $apiBaseUrl';
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(_errorMessage!)));
+        tampilkanSnack(pesanError!);
       }
     } on TimeoutException {
-      print("timeout getArtikel");
+      // Kalau lebih dari 15 detik tidak ada jawaban.
       if (!mounted) return;
       setState(() {
-        _isLoading = false;
-        _errorMessage =
+        isLoading = false;
+        pesanError =
             'Request timeout - periksa koneksi lalu coba lagi ($apiBaseUrl)';
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_errorMessage!)));
+      tampilkanSnack(pesanError!);
     } catch (e) {
-      print("error getArtikel: $e");
+      // Kalau tidak bisa konek sama sekali (WiFi mati, IP salah, dll).
       if (!mounted) return;
       setState(() {
-        _isLoading = false;
-        _errorMessage = 'Tidak bisa konek ke $apiBaseUrl - cek WiFi & firewall';
+        isLoading = false;
+        pesanError = 'Tidak bisa konek ke $apiBaseUrl - cek WiFi & firewall';
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(_errorMessage!)));
+      tampilkanSnack(pesanError!);
     }
   }
 
-  String _penerbit(dynamic item) {
-    return (item['nama_penerbit'] ??
-            item['penerbit_artikel'] ??
-            item['penerbit'] ??
-            '')
-        .toString();
+  // Pesan kecil di bawah layar.
+  void tampilkanSnack(String pesan) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
+  }
+
+  // Ambil nama penerbit. Kuncinya beda-beda di server,
+  // jadi kita coba satu per satu.
+  String ambilPenerbit(dynamic item) {
+    dynamic nama =
+        item['nama_penerbit'] ?? item['penerbit_artikel'] ?? item['penerbit'];
+    if (nama == null) {
+      return '';
+    }
+    return nama.toString();
   }
 
   @override
   void initState() {
     super.initState();
+    // Langsung ambil data saat halaman dibuka.
     getArtikel();
   }
 
@@ -116,6 +126,7 @@ class _PostListScreenState extends State<PostListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Bagian atas: logo + nama aplikasi.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
@@ -128,11 +139,14 @@ class _PostListScreenState extends State<PostListScreen> {
                       width: 28,
                       height: 28,
                       fit: BoxFit.cover,
-                      errorBuilder: (c, e, s) => const Icon(
-                        Icons.restaurant,
-                        size: 22,
-                        color: Color(0xFFF28C28),
-                      ),
+                      // Kalau logo tidak ketemu, tampilkan ikon.
+                      errorBuilder: (c, e, s) {
+                        return const Icon(
+                          Icons.restaurant,
+                          size: 22,
+                          color: Color(0xFFF28C28),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -147,10 +161,11 @@ class _PostListScreenState extends State<PostListScreen> {
                 ],
               ),
             ),
+            // Judul besar.
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 6, 20, 16),
               child: Text(
-                "Ruang Inspirasi\nKuliner Kamu",
+                'Ruang Inspirasi\nKuliner Kamu',
                 style: TextStyle(
                   color: Color(0xFF33251F),
                   fontSize: 32,
@@ -160,15 +175,18 @@ class _PostListScreenState extends State<PostListScreen> {
                 ),
               ),
             ),
+            // Isi utama: bisa loading / error / kosong / daftar.
+            // Dibungkus RefreshIndicator supaya bisa tarik ke bawah untuk refresh.
             Expanded(
               child: RefreshIndicator(
                 onRefresh: getArtikel,
-                child: _buildBody(),
+                child: pilihTampilan(),
               ),
             ),
           ],
         ),
       ),
+      // Tombol + untuk tambah artikel.
       floatingActionButton: FloatingActionButton(
         backgroundColor: const Color(0xFFF28C28),
         foregroundColor: Colors.white,
@@ -177,101 +195,119 @@ class _PostListScreenState extends State<PostListScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const AddPostPage()),
-          ).then((value) => getArtikel());
+          ).then((hasil) {
+            // Setelah kembali dari tambah, muat ulang daftar.
+            getArtikel();
+          });
         },
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
-        children: const [
-          Center(child: CircularProgressIndicator(color: Color(0xFFF28C28))),
-          SizedBox(height: 16),
-          Center(
-            child: Text(
-              'Memuat artikel...',
-              style: TextStyle(color: Color(0xFF806B5D)),
-            ),
-          ),
-        ],
-      );
+  // Pilih tampilan sesuai kondisi: loading, error, kosong, atau daftar.
+  Widget pilihTampilan() {
+    if (isLoading) {
+      return tampilanLoading();
     }
-
-    if (_errorMessage != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
-        children: [
-          const Icon(Icons.cloud_off, size: 48, color: Color(0xFF806B5D)),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              _errorMessage!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF806B5D)),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF28C28),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: getArtikel,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Coba Lagi'),
-            ),
-          ),
-        ],
-      );
+    if (pesanError != null) {
+      return tampilanError();
     }
-
     if (artikel.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
-        children: const [
-          Icon(Icons.article_outlined, size: 48, color: Color(0xFF806B5D)),
-          SizedBox(height: 12),
-          Center(
-            child: Text(
-              'Belum ada artikel',
-              style: TextStyle(color: Color(0xFF806B5D)),
-            ),
-          ),
-        ],
-      );
+      return tampilanKosong();
     }
-
-    return _buildList();
+    return daftarArtikel();
   }
 
-  Widget _buildList() {
+  // Tampilan saat data sedang dimuat.
+  Widget tampilanLoading() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
+      children: const [
+        Center(child: CircularProgressIndicator(color: Color(0xFFF28C28))),
+        SizedBox(height: 16),
+        Center(
+          child: Text(
+            'Memuat artikel...',
+            style: TextStyle(color: Color(0xFF806B5D)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Tampilan saat gagal ambil data + tombol coba lagi.
+  Widget tampilanError() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
+      children: [
+        const Icon(Icons.cloud_off, size: 48, color: Color(0xFF806B5D)),
+        const SizedBox(height: 12),
+        Center(
+          child: Text(
+            pesanError!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF806B5D)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF28C28),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: getArtikel,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Coba Lagi'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Tampilan saat server tidak punya artikel.
+  Widget tampilanKosong() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 40, 20, 100),
+      children: const [
+        Icon(Icons.article_outlined, size: 48, color: Color(0xFF806B5D)),
+        SizedBox(height: 12),
+        Center(
+          child: Text(
+            'Belum ada artikel',
+            style: TextStyle(color: Color(0xFF806B5D)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Tampilan daftar artikel.
+  Widget daftarArtikel() {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
       itemCount: artikel.length,
       itemBuilder: (context, index) {
-        final item = artikel[index];
-        return _buildArticleCard(item);
+        dynamic item = artikel[index];
+        return kartuArtikel(item);
       },
     );
   }
 
-  // Extract widget in-file (tanpa file baru): kartu artikel reusable.
-  Widget _buildArticleCard(dynamic item) {
-    final String gambar = gambarArtikelUrl(
+  // Satu kartu artikel: nama penerbit + judul + gambar.
+  Widget kartuArtikel(dynamic item) {
+    // 1. Siapkan data yang mau ditampilkan.
+    String gambar = gambarArtikelUrl(
       item['gambar_artikel'] ?? item['gambar'] ?? item['image'],
     );
-    final String judul = (item['judul_artikel'] ?? item['title'] ?? '-')
-        .toString();
-    final String penerbit = _penerbit(item);
+    String judul = (item['judul_artikel'] ?? item['title'] ?? '-').toString();
+    String penerbit = ambilPenerbit(item);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -279,6 +315,7 @@ class _PostListScreenState extends State<PostListScreen> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
+            // Warna hitam transparan 5% untuk bayangan kartu.
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
@@ -288,24 +325,27 @@ class _PostListScreenState extends State<PostListScreen> {
       child: InkWell(
         borderRadius: BorderRadius.circular(24),
         onTap: () {
+          // 2. Kalau kartu diklik, buka halaman detail.
+          dynamic id = item['id'] ?? item['id_artikel'];
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => PostDetailScreen(
-                postId: item['id'] ?? item['id_artikel'],
-              ),
+              builder: (context) => PostDetailScreen(postId: id),
             ),
-          ).then((value) => getArtikel());
+          ).then((hasil) {
+            // Setelah kembali, muat ulang (siapa tahu habis dihapus/diedit).
+            getArtikel();
+          });
         },
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Baris atas: nama penerbit + ikon verified
-              Row(
-                children: [
-                  if (penerbit.isNotEmpty) ...[
+              // Baris nama penerbit + centang biru.
+              if (penerbit.isNotEmpty)
+                Row(
+                  children: [
                     Flexible(
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -332,10 +372,9 @@ class _PostListScreenState extends State<PostListScreen> {
                       ),
                     ),
                   ],
-                ],
-              ),
+                ),
               const SizedBox(height: 8),
-              // Judul apa adanya dari database
+              // Judul artikel.
               Text(
                 judul,
                 maxLines: 2,
@@ -348,6 +387,7 @@ class _PostListScreenState extends State<PostListScreen> {
                 ),
               ),
               const SizedBox(height: 10),
+              // Gambar artikel.
               ClipRRect(
                 borderRadius: BorderRadius.circular(18),
                 child: SizedBox(
@@ -360,8 +400,8 @@ class _PostListScreenState extends State<PostListScreen> {
                           height: 190,
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
+                          // Kalau gambar gagal dimuat, tampilkan ikon.
                           errorBuilder: (c, e, s) {
-                            print('gagal load gambar $gambar: $e');
                             return Container(
                               color: Colors.grey.shade200,
                               child: const Icon(

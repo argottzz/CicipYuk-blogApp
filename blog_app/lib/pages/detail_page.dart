@@ -1,12 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
 import '../api_config.dart';
 import 'edit_post_page.dart';
 
+// Halaman 3: Detail Artikel.
+// Menampilkan isi lengkap 1 artikel + tombol edit dan hapus.
 class PostDetailScreen extends StatefulWidget {
-  final int postId;
+  // ID artikel yang mau ditampilkan.
+  // Dibuat dynamic supaya aman: server kadang kirim angka, kadang teks.
+  final dynamic postId;
 
   const PostDetailScreen({super.key, required this.postId});
 
@@ -15,68 +21,67 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
+  // Data 1 artikel. Awalnya kosong (null) karena belum dimuat.
   Map<String, dynamic>? artikel;
-  bool isLoading = true;
-  bool _isDeleting = false;
 
+  // Status layar.
+  bool isLoading = true;
+  bool lagiMenghapus = false;
+
+  // Ambil detail artikel dari server.
   Future<void> getDetail() async {
     try {
-      http.Response? response;
-
-      try {
-        response = await http.get(
-          Uri.parse("$apiBaseUrl/api/artikel/${widget.postId}"),
-        );
-      } catch (e) {
-        print("error GET detail by id: $e");
-      }
-
+      // 1. Coba ambil langsung: GET /api/artikel/ID
       dynamic data;
 
-      if (response != null && response.statusCode == 200) {
-        var body = jsonDecode(response.body);
+      try {
+        final response = await http
+            .get(Uri.parse('$apiBaseUrl/api/artikel/${widget.postId}'))
+            .timeout(const Duration(seconds: 15));
 
-        if (body is Map && body['data'] != null) {
-          data = body['data'];
-        } else {
-          data = body;
+        if (response.statusCode == 200) {
+          dynamic body = jsonDecode(response.body);
+          if (body is Map && body['data'] != null) {
+            data = body['data'];
+          } else {
+            data = body;
+          }
         }
-      } else {
-        print(
-          "GET /api/artikel/${widget.postId} gagal "
-          "(${response?.statusCode ?? 'error'}), fallback ambil daftar artikel",
-        );
+      } catch (e) {
+        // Kalau gagal, jangan langsung error. Lanjut ke cara cadangan di bawah.
+      }
 
-        final listResponse = await http.get(
-          Uri.parse("$apiBaseUrl/api/artikel"),
-        );
+      // 2. Cara cadangan: ambil semua artikel, lalu cari yang ID-nya sama.
+      // Ini untuk server yang belum punya endpoint detail per ID.
+      if (data is! Map) {
+        final listResponse = await http
+            .get(Uri.parse('$apiBaseUrl/api/artikel'))
+            .timeout(const Duration(seconds: 15));
 
         if (listResponse.statusCode == 200) {
-          var body = jsonDecode(listResponse.body);
+          dynamic body = jsonDecode(listResponse.body);
 
-          List list;
-
+          List list = [];
           if (body is Map && body['data'] != null) {
             list = body['data'];
           } else if (body is List) {
             list = body;
-          } else {
-            list = [];
           }
 
-          for (final item in list) {
-            if ((item['id'] ?? item['id_artikel']) == widget.postId) {
+          // Cari artikel yang ID-nya sama (bandingkan sebagai teks supaya aman).
+          for (var item in list) {
+            String idItem = (item['id'] ?? item['id_artikel']).toString();
+            if (idItem == widget.postId.toString()) {
               data = item;
               break;
             }
           }
-        } else {
-          print("gagal ambil daftar artikel: ${listResponse.statusCode}");
         }
       }
 
       if (!mounted) return;
 
+      // 3. Simpan hasilnya.
       if (data is Map) {
         setState(() {
           artikel = Map<String, dynamic>.from(data);
@@ -88,48 +93,57 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         });
       }
     } catch (e) {
-      print("error getDetail: $e");
-
       if (!mounted) return;
-
       setState(() {
         isLoading = false;
       });
     }
   }
 
-  Future<void> _confirmAndDelete(dynamic idRaw) async {
-    if (_isDeleting) return;
-    final confirmed = await showDialog<bool>(
+  // Tampilkan dialog "Hapus Artikel?" sebelum benar-benar menghapus.
+  // Polanya sama seperti konfirmasi pada umumnya.
+  Future<void> tanyaHapus(dynamic id) async {
+    if (lagiMenghapus) return;
+
+    bool? setuju = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Hapus Artikel?'),
-        content: const Text(
-          'Artikel yang dihapus tidak bisa dikembalikan. Lanjutkan?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Hapus Artikel?'),
+          content: const Text(
+            'Artikel yang dihapus tidak bisa dikembalikan. Lanjutkan?',
           ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Hapus'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus'),
+            ),
+          ],
+        );
+      },
     );
-    if (confirmed == true && mounted) {
-      await _performDelete(idRaw);
+
+    if (setuju == true && mounted) {
+      hapusArtikel(id);
     }
   }
 
-  Future<void> _performDelete(dynamic idRaw) async {
-    if (_isDeleting) return;
-    setState(() => _isDeleting = true);
+  // Hapus artikel di server. Mirip deleteProduct() di latihan.
+  Future<void> hapusArtikel(dynamic idRaw) async {
+    if (lagiMenghapus) return;
+
+    setState(() {
+      lagiMenghapus = true;
+    });
+
     try {
-      final id = idRaw.toString();
+      String id = idRaw.toString();
+
       final response = await http
           .delete(Uri.parse('$apiBaseUrl/api/artikel/$id'))
           .timeout(const Duration(seconds: 15));
@@ -140,36 +154,35 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Artikel berhasil dihapus')),
         );
-
+        // Kembali ke daftar sambil membawa kabar "berhasil hapus".
         Navigator.pop(context, true);
       } else {
-        print('gagal hapus: ${response.statusCode} ${response.body}');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Gagal hapus (${response.statusCode}): ${_pesanError(response.body)}',
+              'Gagal hapus (${response.statusCode}): ${pesanErrorBackend(response.body)}',
             ),
           ),
         );
       }
     } on TimeoutException {
-      print('timeout deleteArtikel');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Request timeout - coba lagi')),
       );
     } catch (e) {
-      print('error deleteArtikel: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Gagal hapus: $e')));
-    } finally {
-      if (mounted) setState(() => _isDeleting = false);
+    }
+
+    if (mounted) {
+      setState(() {
+        lagiMenghapus = false;
+      });
     }
   }
-
-  String _pesanError(String body) => pesanErrorBackend(body);
 
   @override
   void initState() {
@@ -179,6 +192,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 1. Kalau masih loading, tampilkan lingkaran putar.
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFFFF9F0),
@@ -188,64 +202,43 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       );
     }
 
+    // 2. Kalau data tidak ketemu, tampilkan pesan.
     if (artikel == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFFFF9F0),
-        appBar: AppBar(title: const Text("Post Detail")),
-        body: const Center(child: Text("Artikel tidak ditemukan")),
+        appBar: AppBar(title: const Text('Post Detail')),
+        body: const Center(child: Text('Artikel tidak ditemukan')),
       );
     }
 
-    final gambarUrl = gambarArtikelUrl(
+    // 3. Siapkan data untuk ditampilkan.
+    String gambarUrl = gambarArtikelUrl(
       artikel!['gambar_artikel'] ?? artikel!['gambar'] ?? artikel!['image'],
     );
-
-    final judul = (artikel!['judul_artikel'] ?? artikel!['title'] ?? '-')
+    String judul = (artikel!['judul_artikel'] ?? artikel!['title'] ?? '-')
         .toString();
-
-    final kategori =
+    String kategori =
         (artikel!['nama_kategori'] ?? artikel!['category_name'] ?? '')
             .toString();
-
-    final penulis = (artikel!['penulis_artikel'] ?? '-').toString();
-
-    final penerbit =
+    String penulis = (artikel!['penulis_artikel'] ?? '-').toString();
+    String penerbit =
         (artikel!['nama_penerbit'] ??
                 artikel!['penerbit_artikel'] ??
                 artikel!['penerbit'] ??
                 '')
             .toString();
+    String isi = (artikel!['isi_artikel'] ?? artikel!['content'] ?? '-')
+        .toString();
+    dynamic id = artikel!['id'] ?? artikel!['id_artikel'];
 
-    final tanggal = (artikel!['created_at'] ?? artikel!['updated_at'] ?? '')
+    // Ambil tanggal saja (buang jamnya).
+    // Contoh: "2024-01-01T10:00:00" -> "2024-01-01"
+    String tanggal = (artikel!['created_at'] ?? artikel!['updated_at'] ?? '')
         .toString()
         .split('T')
         .first
         .split(' ')
         .first;
-
-    final isi = (artikel!['isi_artikel'] ?? artikel!['content'] ?? '-')
-        .toString();
-
-    final id = artikel!['id'] ?? artikel!['id_artikel'];
-
-    Widget circleBtn(
-      IconData icon,
-      VoidCallback onTap, {
-      Color iconColor = const Color(0xFF33251F),
-    }) {
-      return InkWell(
-        onTap: onTap,
-        child: Container(
-          width: 38,
-          height: 38,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18, color: iconColor),
-        ),
-      );
-    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F0),
@@ -253,8 +246,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Bagian atas: foto besar + tombol back/edit/hapus.
             Stack(
               children: [
+                // Foto artikel.
                 SizedBox(
                   height: 420,
                   width: double.infinity,
@@ -264,8 +259,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           fit: BoxFit.cover,
                           gaplessPlayback: true,
                           errorBuilder: (c, e, s) {
-                            print('gagal load gambar detail $gambarUrl: $e');
-
                             return Container(
                               color: Colors.grey.shade300,
                               child: const Icon(
@@ -286,6 +279,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                 ),
 
+                // Bayangan hitam supaya tombol putih terlihat jelas.
                 Container(
                   height: 420,
                   decoration: BoxDecoration(
@@ -293,6 +287,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
+                        // Hitam transparan supaya tombol putih terlihat jelas.
                         Colors.black.withValues(alpha: 0.45),
                         Colors.transparent,
                         Colors.black.withValues(alpha: 0.25),
@@ -301,77 +296,61 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ),
 
+                // Baris tombol: kembali, judul, edit, hapus.
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                     child: Row(
                       children: [
-                        InkWell(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.arrow_back_ios_new,
-                              size: 16,
-                              color: Color(0xFF33251F),
-                            ),
-                          ),
-                        ),
-
+                        tombolBulat(Icons.arrow_back_ios_new, () {
+                          Navigator.pop(context);
+                        }),
                         const SizedBox(width: 12),
-
                         const Text(
-                          "Post Detail",
+                          'Post Detail',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-
                         const Spacer(),
-
-                        circleBtn(Icons.edit, () {
-                          if (_isDeleting) return;
+                        // Tombol edit.
+                        tombolBulat(Icons.edit, () {
+                          if (lagiMenghapus) return;
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
                                   EditPostPage(artikel: artikel),
                             ),
-                          ).then((value) {
-                            if (value == true) {
+                          ).then((hasil) {
+                            // Kalau habis edit, muat ulang detail.
+                            if (hasil == true) {
                               getDetail();
                             }
                           });
-                        }, iconColor: const Color(0xFFF28C28)),
-
+                        }, warnaIkon: const Color(0xFFF28C28)),
                         const SizedBox(width: 8),
-
-                        _isDeleting
-                            ? Container(
-                                width: 38,
-                                height: 38,
-                                decoration: const BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                ),
-                                padding: const EdgeInsets.all(10),
-                                child: const CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Color(0xFFF28C28),
-                                ),
-                              )
-                            : circleBtn(
-                                Icons.delete,
-                                () => _confirmAndDelete(id),
-                                iconColor: const Color(0xFFF28C28),
-                              ),
+                        // Tombol hapus (berubah jadi loading saat menghapus).
+                        if (lagiMenghapus)
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            padding: const EdgeInsets.all(10),
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFF28C28),
+                            ),
+                          )
+                        else
+                          tombolBulat(Icons.delete, () {
+                            tanyaHapus(id);
+                          }, warnaIkon: const Color(0xFFF28C28)),
                       ],
                     ),
                   ),
@@ -379,6 +358,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
 
+            // Kartu putih isi artikel, naik sedikit menutupi foto.
             Transform.translate(
               offset: const Offset(0, -28),
               child: Container(
@@ -391,6 +371,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Nama penerbit + centang biru.
                     if (penerbit.isNotEmpty) ...[
                       Row(
                         children: [
@@ -406,9 +387,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                               ),
                             ),
                           ),
-
                           const SizedBox(width: 4),
-
                           const Icon(
                             Icons.verified,
                             size: 14,
@@ -416,10 +395,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ),
                         ],
                       ),
-
                       const SizedBox(height: 8),
                     ],
 
+                    // Judul.
                     Text(
                       judul,
                       style: const TextStyle(
@@ -430,69 +409,50 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         color: Color(0xFF33251F),
                       ),
                     ),
-
                     const SizedBox(height: 16),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                penulis,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF33251F),
-                                ),
-                              ),
-
-                              if (tanggal.isNotEmpty)
-                                Text(
-                                  tanggal,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF806B5D),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    // Penulis + tanggal.
+                    Text(
+                      penulis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF33251F),
+                      ),
                     ),
+                    if (tanggal.isNotEmpty)
+                      Text(
+                        tanggal,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF806B5D),
+                        ),
+                      ),
 
+                    // Label kategori.
                     if (kategori.isNotEmpty) ...[
                       const SizedBox(height: 12),
-
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          if (kategori.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFFD166),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                kategori,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF33251F),
-                                ),
-                              ),
-                            ),
-                        ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD166),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          kategori,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF33251F),
+                          ),
+                        ),
                       ),
                     ],
-
                     const SizedBox(height: 16),
 
+                    // Isi artikel.
                     Text(
                       isi,
                       style: const TextStyle(
@@ -507,6 +467,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Tombol lingkaran putih kecil (untuk back, edit, hapus).
+  Widget tombolBulat(
+    IconData ikon,
+    VoidCallback diklik, {
+    Color warnaIkon = const Color(0xFF33251F),
+  }) {
+    return InkWell(
+      onTap: diklik,
+      child: Container(
+        width: 38,
+        height: 38,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(ikon, size: 18, color: warnaIkon),
       ),
     );
   }

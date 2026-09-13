@@ -1,13 +1,18 @@
-﻿import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 import '../api_config.dart';
 
+// Halaman 4: Edit Artikel.
+// Mirip halaman Tambah, bedanya form sudah terisi data lama.
+// Polanya mirip EditProductPage di latihan.
 class EditPostPage extends StatefulWidget {
+  // Data artikel lama yang mau diedit.
   final dynamic artikel;
 
   const EditPostPage({super.key, this.artikel});
@@ -17,202 +22,201 @@ class EditPostPage extends StatefulWidget {
 }
 
 class _EditPostPageState extends State<EditPostPage> {
-  // Form + validator sesuai materi (Bab Input Form Widget).
-  final _formKey = GlobalKey<FormState>();
+  // 1. Kunci form untuk validasi.
+  final formKey = GlobalKey<FormState>();
 
+  // 2. Controller untuk membaca ketikan user.
   final judulController = TextEditingController();
   final isiController = TextEditingController();
   final penulisController = TextEditingController();
 
-  final List<dynamic> kategori = [];
-  bool _loadingKategori = true;
-  String? _kategoriError;
-  int? selectedKategori;
+  // 3. Data kategori dan penerbit dari server.
+  List<dynamic> daftarKategori = [];
+  bool kategoriLoading = true;
+  String? kategoriError;
+  int? kategoriTerpilih;
 
-  final List<dynamic> penerbit = [];
-  bool _loadingPenerbit = true;
-  String? _penerbitError;
-  int? selectedPenerbit;
+  List<dynamic> daftarPenerbit = [];
+  bool penerbitLoading = true;
+  String? penerbitError;
+  int? penerbitTerpilih;
 
-  XFile? pickedImage;
-  bool _isSubmitting = false;
+  // 4. Gambar baru (kalau user ganti) + status simpan.
+  XFile? gambarBaru;
+  bool lagiMenyimpan = false;
+  final ImagePicker picker = ImagePicker();
 
-  final ImagePicker _picker = ImagePicker();
-
+  // Ambil daftar kategori dari server.
   Future<void> getKategori() async {
     setState(() {
-      _loadingKategori = true;
-      _kategoriError = null;
+      kategoriLoading = true;
+      kategoriError = null;
     });
+
     try {
       final response = await http
           .get(Uri.parse('$apiBaseUrl/api/kategori'))
           .timeout(const Duration(seconds: 15));
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
+        dynamic body = jsonDecode(response.body);
 
-        final List data;
-
+        List dataBaru = [];
         if (body is Map && body['data'] != null) {
-          data = (body['data'] as List?) ?? [];
+          dataBaru = body['data'];
         } else if (body is List) {
-          data = body;
-        } else {
-          data = [];
+          dataBaru = body;
         }
 
-        if (!mounted) return;
         setState(() {
-          kategori
-            ..clear()
-            ..addAll(data);
-          _loadingKategori = false;
+          daftarKategori.clear();
+          daftarKategori.addAll(dataBaru);
+          kategoriLoading = false;
         });
       } else {
-        if (!mounted) return;
         setState(() {
-          _loadingKategori = false;
-          _kategoriError = 'Gagal memuat kategori (${response.statusCode})';
+          kategoriLoading = false;
+          kategoriError = 'Gagal memuat kategori (${response.statusCode})';
         });
       }
     } on TimeoutException {
       if (!mounted) return;
       setState(() {
-        _loadingKategori = false;
-        _kategoriError = 'Request timeout - coba lagi';
+        kategoriLoading = false;
+        kategoriError = 'Request timeout - coba lagi';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loadingKategori = false;
-        _kategoriError = 'Tidak bisa konek ke server';
+        kategoriLoading = false;
+        kategoriError = 'Tidak bisa konek ke server';
       });
     }
   }
 
+  // Ambil daftar penerbit. Caranya sama persis seperti getKategori.
   Future<void> getPenerbit() async {
     setState(() {
-      _loadingPenerbit = true;
-      _penerbitError = null;
+      penerbitLoading = true;
+      penerbitError = null;
     });
+
     try {
       final response = await http
           .get(Uri.parse('$apiBaseUrl/api/penerbit'))
           .timeout(const Duration(seconds: 15));
 
+      if (!mounted) return;
+
       if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
+        dynamic body = jsonDecode(response.body);
 
-        final List data;
-
+        List dataBaru = [];
         if (body is Map && body['data'] != null) {
-          data = (body['data'] as List?) ?? [];
+          dataBaru = body['data'];
         } else if (body is List) {
-          data = body;
-        } else {
-          data = [];
+          dataBaru = body;
         }
 
-        if (!mounted) return;
         setState(() {
-          penerbit
-            ..clear()
-            ..addAll(data);
-          _loadingPenerbit = false;
+          daftarPenerbit.clear();
+          daftarPenerbit.addAll(dataBaru);
+          penerbitLoading = false;
         });
       } else {
-        if (!mounted) return;
         setState(() {
-          _loadingPenerbit = false;
-          _penerbitError = 'Gagal memuat penerbit (${response.statusCode})';
+          penerbitLoading = false;
+          penerbitError = 'Gagal memuat penerbit (${response.statusCode})';
         });
       }
     } on TimeoutException {
       if (!mounted) return;
       setState(() {
-        _loadingPenerbit = false;
-        _penerbitError = 'Request timeout - coba lagi';
+        penerbitLoading = false;
+        penerbitError = 'Request timeout - coba lagi';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _loadingPenerbit = false;
-        _penerbitError = 'Tidak bisa konek ke server';
+        penerbitLoading = false;
+        penerbitError = 'Tidak bisa konek ke server';
       });
     }
   }
 
-  /// Pilih gambar dengan validasi ukuran (max 5MB) dan ekstensi.
-  Future<void> pickImage() async {
-    final XFile? image = await _picker.pickImage(
+  // Pilih gambar baru dari galeri. Sama persis seperti di Tambah.
+  Future<void> pilihGambar() async {
+    XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
     );
 
-    if (image != null) {
-      final int bytes = await image.length();
-
-      if (bytes > 5 * 1024 * 1024) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ukuran file maksimal 5MB')),
-        );
-
-        return;
-      }
-
-      final String ext = image.name.toLowerCase();
-
-      if (!(ext.endsWith('.jpg') ||
-          ext.endsWith('.jpeg') ||
-          ext.endsWith('.png') ||
-          ext.endsWith('.webp'))) {
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Hanya jpg, jpeg, png, webp yang diperbolehkan'),
-          ),
-        );
-
-        return;
-      }
-
-      setState(() {
-        pickedImage = image;
-      });
-    }
-  }
-
-  Future<void> updateArtikel() async {
-    if (_isSubmitting) return;
-    // Validasi via Form (materi: formKey.currentState!.validate()).
-    if (!_formKey.currentState!.validate()) return;
-
-    final String judul = judulController.text.trim();
-    final String penulis = penulisController.text.trim();
-    final String isi = isiController.text.trim();
-
-    final dynamic idRaw =
-        widget.artikel['id'] ?? widget.artikel['id_artikel'];
-    if (idRaw == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ID artikel tidak ditemukan')),
-      );
+    if (image == null) {
       return;
     }
-    final String id = idRaw.toString();
 
-    setState(() => _isSubmitting = true);
+    int ukuran = await image.length();
+    if (ukuran > 5 * 1024 * 1024) {
+      if (!mounted) return;
+      tampilkanSnack('Ukuran file maksimal 5MB');
+      return;
+    }
+
+    String nama = image.name.toLowerCase();
+    bool boleh =
+        nama.endsWith('.jpg') ||
+        nama.endsWith('.jpeg') ||
+        nama.endsWith('.png') ||
+        nama.endsWith('.webp');
+    if (!boleh) {
+      if (!mounted) return;
+      tampilkanSnack('Hanya jpg, jpeg, png, webp yang diperbolehkan');
+      return;
+    }
+
+    setState(() {
+      gambarBaru = image;
+    });
+  }
+
+  void tampilkanSnack(String pesan) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
+  }
+
+  // Kirim perubahan ke server.
+  Future<void> updateArtikel() async {
+    if (lagiMenyimpan) return;
+
+    // 1. Validasi dulu.
+    if (!formKey.currentState!.validate()) {
+      return;
+    }
+
+    String judul = judulController.text.trim();
+    String penulis = penulisController.text.trim();
+    String isi = isiController.text.trim();
+
+    // 2. Ambil ID artikel lama.
+    dynamic idRaw = widget.artikel['id'] ?? widget.artikel['id_artikel'];
+    if (idRaw == null) {
+      tampilkanSnack('ID artikel tidak ditemukan');
+      return;
+    }
+    String id = idRaw.toString();
+
+    setState(() {
+      lagiMenyimpan = true;
+    });
+
     try {
-      final Uri url = Uri.parse('$apiBaseUrl/api/artikel/$id');
-      late final http.Response response;
+      Uri url = Uri.parse('$apiBaseUrl/api/artikel/$id');
+      late http.Response response;
 
-      if (pickedImage == null) {
-        // Tanpa gambar baru: PUT JSON biasa ke backend Express.
+      if (gambarBaru == null) {
+        // 3a. Tanpa gambar baru: kirim JSON biasa pakai PUT.
         response = await http
             .put(
               url,
@@ -223,110 +227,85 @@ class _EditPostPageState extends State<EditPostPage> {
               body: jsonEncode({
                 'judul_artikel': judul,
                 'isi_artikel': isi,
-                'id_kategori': selectedKategori,
-                'id_penerbit': selectedPenerbit,
+                'id_kategori': kategoriTerpilih,
+                'id_penerbit': penerbitTerpilih,
                 'penulis_artikel': penulis,
               }),
             )
             .timeout(const Duration(seconds: 20));
       } else {
-        // Dengan gambar: backend Express (multer) terima PUT multipart langsung.
-        final request = http.MultipartRequest('PUT', url);
-
+        // 3b. Dengan gambar baru: kirim multipart pakai PUT.
+        var request = http.MultipartRequest('PUT', url);
         request.headers['Accept'] = 'application/json';
         request.fields['judul_artikel'] = judul;
         request.fields['isi_artikel'] = isi;
-        request.fields['id_kategori'] = selectedKategori.toString();
-        request.fields['id_penerbit'] = selectedPenerbit.toString();
+        request.fields['id_kategori'] = kategoriTerpilih.toString();
+        request.fields['id_penerbit'] = penerbitTerpilih.toString();
         request.fields['penulis_artikel'] = penulis;
 
         request.files.add(
           await http.MultipartFile.fromPath(
             'gambar_artikel',
-            pickedImage!.path,
-            filename: pickedImage!.name,
-            contentType: mediaTypeForImage(pickedImage!.name),
+            gambarBaru!.path,
+            filename: gambarBaru!.name,
+            contentType: mediaTypeForImage(gambarBaru!.name),
           ),
         );
 
-        final streamed = await request.send().timeout(
+        var terkirim = await request.send().timeout(
           const Duration(seconds: 30),
         );
-
-        response = await http.Response.fromStream(streamed);
+        response = await http.Response.fromStream(terkirim);
       }
 
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Artikel berhasil diupdate')),
-        );
-
+        tampilkanSnack('Artikel berhasil diupdate');
         Navigator.pop(context, true);
       } else {
-        print('Gagal update: ${response.statusCode} ${response.body}');
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Gagal update (${response.statusCode}): ${pesanErrorBackend(response.body)}',
-            ),
-          ),
+        tampilkanSnack(
+          'Gagal update (${response.statusCode}): ${pesanErrorBackend(response.body)}',
         );
       }
     } on TimeoutException {
-      print('timeout update artikel');
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request timeout - coba lagi')),
-      );
+      tampilkanSnack('Request timeout - coba lagi');
     } catch (e) {
-      print('Error update: $e');
+      tampilkanSnack('Error: $e');
+    }
 
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+    if (mounted) {
+      setState(() {
+        lagiMenyimpan = false;
+      });
     }
   }
 
   @override
   void initState() {
     super.initState();
-
     getKategori();
     getPenerbit();
 
+    // Isi form dengan data lama supaya user tinggal mengubah.
     judulController.text =
         (widget.artikel['judul_artikel'] ?? widget.artikel['title'] ?? '')
             .toString();
-
     isiController.text =
         (widget.artikel['isi_artikel'] ?? widget.artikel['content'] ?? '')
             .toString();
-
     penulisController.text =
         (widget.artikel['penulis_artikel'] ??
                 widget.artikel['penerbit_artikel'] ??
                 '')
             .toString();
 
-    selectedKategori = parseKategoriId(
-      widget.artikel['id_kategori'] ??
-          widget.artikel['category_id'] ??
-          widget.artikel['kategori_id'],
+    // Isi dropdown dengan ID lama.
+    kategoriTerpilih = parseKategoriId(
+      widget.artikel['id_kategori'] ?? widget.artikel['category_id'],
     );
-
-    selectedPenerbit = parsePenerbitId(
-      widget.artikel['id_penerbit'] ??
-          widget.artikel['penerbit_id'] ??
-          widget.artikel['idPenerbit'],
+    penerbitTerpilih = parsePenerbitId(
+      widget.artikel['id_penerbit'] ?? widget.artikel['penerbit_id'],
     );
   }
 
@@ -338,8 +317,8 @@ class _EditPostPageState extends State<EditPostPage> {
     super.dispose();
   }
 
-  // Extract widget in-file: nama disamakan dengan AddPostPage (_field).
-  InputDecoration _field(String label) {
+  // Dekorasi input: putih, sudut bulat. Sama seperti di Tambah.
+  InputDecoration dekorasiInput(String label) {
     return InputDecoration(
       labelText: label,
       floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -348,55 +327,79 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
+  // Buat item dropdown kategori pakai for supaya mudah dibaca.
+  List<DropdownMenuItem<int>> buatItemKategori() {
+    List<DropdownMenuItem<int>> hasil = [];
+    for (var item in daftarKategori) {
+      int? id = parseKategoriIdFromItem(item);
+      if (id == null) {
+        continue;
+      }
+      hasil.add(
+        DropdownMenuItem<int>(
+          value: id,
+          child: Text(kategoriName(item), overflow: TextOverflow.ellipsis),
+        ),
+      );
+    }
+    return hasil;
+  }
+
+  // Buat item dropdown penerbit.
+  List<DropdownMenuItem<int>> buatItemPenerbit() {
+    List<DropdownMenuItem<int>> hasil = [];
+    for (var item in daftarPenerbit) {
+      int? id = parsePenerbitIdFromItem(item);
+      if (id == null) {
+        continue;
+      }
+      hasil.add(
+        DropdownMenuItem<int>(
+          value: id,
+          child: Text(penerbitName(item), overflow: TextOverflow.ellipsis),
+        ),
+      );
+    }
+    return hasil;
+  }
+
+  // Cek apakah ID lama masih ada di daftar server.
+  // Kalau tidak ada (misal dihapus admin), dropdown dikosongkan supaya tidak error.
+  int? nilaiDropdownKategoriAman() {
+    if (kategoriTerpilih == null) {
+      return null;
+    }
+    for (var item in daftarKategori) {
+      if (parseKategoriIdFromItem(item) == kategoriTerpilih) {
+        return kategoriTerpilih;
+      }
+    }
+    return null;
+  }
+
+  int? nilaiDropdownPenerbitAman() {
+    if (penerbitTerpilih == null) {
+      return null;
+    }
+    for (var item in daftarPenerbit) {
+      if (parsePenerbitIdFromItem(item) == penerbitTerpilih) {
+        return penerbitTerpilih;
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final String? existingGambar =
-        (widget.artikel['gambar_artikel'] ??
-                widget.artikel['gambar'] ??
-                widget.artikel['image'])
-            ?.toString();
-
-    final Set<int> kategoriIds = kategori
-        .map(parseKategoriIdFromItem)
-        .whereType<int>()
-        .toSet();
-    final int? dropdownValue =
-        (selectedKategori != null && kategoriIds.contains(selectedKategori))
-        ? selectedKategori
-        : null;
-
-    final List<DropdownMenuItem<int>> kategoriItems = kategori
-        .map((item) {
-          final int? id = parseKategoriIdFromItem(item);
-          if (id == null) return null;
-          return DropdownMenuItem<int>(
-            value: id,
-            child: Text(kategoriName(item), overflow: TextOverflow.ellipsis),
-          );
-        })
-        .whereType<DropdownMenuItem<int>>()
-        .toList();
-
-    final Set<int> penerbitIds = penerbit
-        .map(parsePenerbitIdFromItem)
-        .whereType<int>()
-        .toSet();
-    final int? dropdownPenerbitValue =
-        (selectedPenerbit != null && penerbitIds.contains(selectedPenerbit))
-        ? selectedPenerbit
-        : null;
-
-    final List<DropdownMenuItem<int>> penerbitItems = penerbit
-        .map((item) {
-          final int? id = parsePenerbitIdFromItem(item);
-          if (id == null) return null;
-          return DropdownMenuItem<int>(
-            value: id,
-            child: Text(penerbitName(item), overflow: TextOverflow.ellipsis),
-          );
-        })
-        .whereType<DropdownMenuItem<int>>()
-        .toList();
+    // Nama file gambar lama (kalau ada).
+    dynamic gambarLamaRaw =
+        widget.artikel['gambar_artikel'] ??
+        widget.artikel['gambar'] ??
+        widget.artikel['image'];
+    String gambarLama = '';
+    if (gambarLamaRaw != null) {
+      gambarLama = gambarLamaRaw.toString();
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFFFF9F0),
@@ -410,7 +413,7 @@ class _EditPostPageState extends State<EditPostPage> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Form(
-          key: _formKey,
+          key: formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -433,120 +436,120 @@ class _EditPostPageState extends State<EditPostPage> {
                 ),
               ),
               const SizedBox(height: 16),
+
+              // Input judul.
               TextFormField(
                 controller: judulController,
                 textInputAction: TextInputAction.next,
-                decoration: _field('Judul Artikel'),
+                decoration: dekorasiInput('Judul Artikel'),
                 validator: (value) {
-                  final v = (value ?? '').trim();
-                  if (v.isEmpty) return 'Judul wajib diisi';
-                  if (v.length > 200) return 'Judul maksimal 200 karakter';
+                  String v = (value ?? '').trim();
+                  if (v.isEmpty) {
+                    return 'Judul wajib diisi';
+                  }
+                  if (v.length > 200) {
+                    return 'Judul maksimal 200 karakter';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 12),
+
+              // Dropdown kategori.
               DropdownButtonFormField<int>(
-                initialValue: dropdownValue,
+                initialValue: nilaiDropdownKategoriAman(),
                 isExpanded: true,
                 hint: Text(
-                  _loadingKategori ? 'Memuat kategori...' : 'Pilih Kategori',
+                  kategoriLoading ? 'Memuat kategori...' : 'Pilih Kategori',
                 ),
-                decoration: _field('Kategori'),
-                items: kategoriItems,
-                validator: (value) =>
-                    value == null ? 'Wajib pilih kategori' : null,
-                onChanged: _loadingKategori
+                decoration: dekorasiInput('Kategori'),
+                items: buatItemKategori(),
+                validator: (value) {
+                  if (value == null) {
+                    return 'Wajib pilih kategori';
+                  }
+                  return null;
+                },
+                onChanged: kategoriLoading
                     ? null
                     : (value) {
                         setState(() {
-                          selectedKategori = value;
+                          kategoriTerpilih = value;
                         });
                       },
               ),
-              if (_kategoriError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _kategoriError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: getKategori,
-                      child: const Text('Coba lagi'),
-                    ),
-                  ],
+              if (kategoriError != null)
+                barisError(kategoriError!, getKategori)
+              else if (!kategoriLoading && buatItemKategori().isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Belum ada kategori di server.',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
                 ),
-              ] else if (!_loadingKategori && kategoriItems.isEmpty) ...[
-                const SizedBox(height: 6),
-                const Text(
-                  'Belum ada kategori di server.',
-                  style: TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
               const SizedBox(height: 12),
+
+              // Dropdown penerbit.
               DropdownButtonFormField<int>(
-                initialValue: dropdownPenerbitValue,
+                initialValue: nilaiDropdownPenerbitAman(),
                 isExpanded: true,
                 hint: Text(
-                  _loadingPenerbit ? 'Memuat penerbit...' : 'Pilih Penerbit',
+                  penerbitLoading ? 'Memuat penerbit...' : 'Pilih Penerbit',
                 ),
-                decoration: _field('Penerbit'),
-                items: penerbitItems,
-                validator: (value) =>
-                    value == null ? 'Wajib pilih penerbit' : null,
-                onChanged: _loadingPenerbit
+                decoration: dekorasiInput('Penerbit'),
+                items: buatItemPenerbit(),
+                validator: (value) {
+                  if (value == null) {
+                    return 'Wajib pilih penerbit';
+                  }
+                  return null;
+                },
+                onChanged: penerbitLoading
                     ? null
                     : (value) {
                         setState(() {
-                          selectedPenerbit = value;
+                          penerbitTerpilih = value;
                         });
                       },
               ),
-              if (_penerbitError != null) ...[
-                const SizedBox(height: 6),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _penerbitError!,
-                        style: const TextStyle(color: Colors.red, fontSize: 12),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: getPenerbit,
-                      child: const Text('Coba lagi'),
-                    ),
-                  ],
+              if (penerbitError != null)
+                barisError(penerbitError!, getPenerbit)
+              else if (!penerbitLoading && buatItemPenerbit().isEmpty)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6),
+                  child: Text(
+                    'Belum ada penerbit di server.',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                  ),
                 ),
-              ] else if (!_loadingPenerbit && penerbitItems.isEmpty) ...[
-                const SizedBox(height: 6),
-                const Text(
-                  'Belum ada penerbit di server.',
-                  style: TextStyle(color: Colors.red, fontSize: 12),
-                ),
-              ],
               const SizedBox(height: 12),
+
+              // Input penulis.
               TextFormField(
                 controller: penulisController,
                 textInputAction: TextInputAction.next,
                 textCapitalization: TextCapitalization.words,
-                decoration: _field('Penulis Artikel'),
+                decoration: dekorasiInput('Penulis Artikel'),
                 validator: (value) {
-                  final v = (value ?? '').trim();
-                  if (v.isEmpty) return 'Penulis wajib diisi';
-                  if (v.length > 100) return 'Penulis maksimal 100 karakter';
+                  String v = (value ?? '').trim();
+                  if (v.isEmpty) {
+                    return 'Penulis wajib diisi';
+                  }
+                  if (v.length > 100) {
+                    return 'Penulis maksimal 100 karakter';
+                  }
                   return null;
                 },
               ),
               const SizedBox(height: 12),
+
+              // Input isi.
               TextFormField(
                 controller: isiController,
                 maxLines: 5,
                 textInputAction: TextInputAction.newline,
-                decoration: _field('Isi Artikel'),
+                decoration: dekorasiInput('Isi Artikel'),
                 validator: (value) {
                   if ((value ?? '').trim().isEmpty) {
                     return 'Isi artikel wajib diisi';
@@ -555,8 +558,12 @@ class _EditPostPageState extends State<EditPostPage> {
                 },
               ),
               const SizedBox(height: 12),
-              _buildImageSection(existingGambar),
+
+              // Kotak gambar: gambar baru > gambar lama > placeholder.
+              bagianGambar(gambarLama),
               const SizedBox(height: 20),
+
+              // Tombol update.
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -568,8 +575,8 @@ class _EditPostPageState extends State<EditPostPage> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  onPressed: _isSubmitting ? null : updateArtikel,
-                  child: _isSubmitting
+                  onPressed: lagiMenyimpan ? null : updateArtikel,
+                  child: lagiMenyimpan
                       ? const SizedBox(
                           height: 20,
                           width: 20,
@@ -594,8 +601,28 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  // Extract widget in-file (tanpa file baru).
-  Widget _buildImageSection(String? existingGambar) {
+  // Baris merah error + tombol coba lagi.
+  Widget barisError(String pesan, VoidCallback cobaLagi) {
+    return Column(
+      children: [
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                pesan,
+                style: const TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ),
+            TextButton(onPressed: cobaLagi, child: const Text('Coba lagi')),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // Kotak gambar untuk edit: ada 3 kemungkinan.
+  Widget bagianGambar(String gambarLama) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
@@ -606,21 +633,23 @@ class _EditPostPageState extends State<EditPostPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (pickedImage != null)
+          // 1. Kalau user baru pilih gambar, tampilkan gambar baru.
+          if (gambarBaru != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.file(
-                File(pickedImage!.path),
+                File(gambarBaru!.path),
                 height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
               ),
             )
-          else if (existingGambar != null && existingGambar.isNotEmpty)
+          // 2. Kalau belum pilih baru tapi ada gambar lama, tampilkan gambar lama.
+          else if (gambarLama.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.network(
-                gambarArtikelUrl(existingGambar),
+                gambarArtikelUrl(gambarLama),
                 height: 180,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -629,21 +658,13 @@ class _EditPostPageState extends State<EditPostPage> {
                   if (progress == null) {
                     return child;
                   }
-
                   return Container(
                     height: 180,
                     color: Colors.grey.shade200,
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    child: const Center(child: CircularProgressIndicator()),
                   );
                 },
                 errorBuilder: (c, e, s) {
-                  print(
-                    'Gagal load gambar edit '
-                    '${gambarArtikelUrl(existingGambar)}: $e',
-                  );
-
                   return Container(
                     height: 120,
                     color: Colors.grey.shade200,
@@ -656,6 +677,7 @@ class _EditPostPageState extends State<EditPostPage> {
                 },
               ),
             )
+          // 3. Kalau tidak ada gambar sama sekali, tampilkan placeholder.
           else
             Container(
               height: 120,
@@ -664,11 +686,7 @@ class _EditPostPageState extends State<EditPostPage> {
                 color: Colors.grey.shade200,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.image,
-                size: 48,
-                color: Colors.grey,
-              ),
+              child: const Icon(Icons.image, size: 48, color: Colors.grey),
             ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
@@ -681,14 +699,13 @@ class _EditPostPageState extends State<EditPostPage> {
             ),
             icon: const Icon(Icons.photo_library),
             label: Text(
-              pickedImage == null &&
-                      (existingGambar == null || existingGambar.isEmpty)
+              gambarBaru == null && gambarLama.isEmpty
                   ? 'Pilih Gambar'
                   : 'Ganti Gambar',
             ),
-            onPressed: pickImage,
+            onPressed: pilihGambar,
           ),
-          if (pickedImage != null)
+          if (gambarBaru != null)
             TextButton.icon(
               icon: const Icon(Icons.delete, color: Colors.red),
               label: const Text(
@@ -697,7 +714,7 @@ class _EditPostPageState extends State<EditPostPage> {
               ),
               onPressed: () {
                 setState(() {
-                  pickedImage = null;
+                  gambarBaru = null;
                 });
               },
             ),
@@ -705,8 +722,4 @@ class _EditPostPageState extends State<EditPostPage> {
       ),
     );
   }
-}
-
-class EditArtikelPage extends EditPostPage {
-  const EditArtikelPage({super.key, required super.artikel});
 }
