@@ -7,11 +7,7 @@ import 'package:http/http.dart' as http;
 import '../api_config.dart';
 import 'edit_post_page.dart';
 
-// Halaman 3: Detail Artikel.
-// Menampilkan isi lengkap 1 artikel + tombol edit dan hapus.
 class PostDetailScreen extends StatefulWidget {
-  // ID artikel yang mau ditampilkan.
-  // Dibuat dynamic supaya aman: server kadang kirim angka, kadang teks.
   final dynamic postId;
 
   const PostDetailScreen({super.key, required this.postId});
@@ -21,17 +17,13 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
-  // Data 1 artikel. Awalnya kosong (null) karena belum dimuat.
   Map<String, dynamic>? artikel;
 
-  // Status layar.
   bool isLoading = true;
   bool lagiMenghapus = false;
 
-  // Ambil detail artikel dari server.
   Future<void> getDetail() async {
     try {
-      // 1. Coba ambil langsung: GET /api/artikel/ID
       dynamic data;
 
       try {
@@ -47,12 +39,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             data = body;
           }
         }
-      } catch (e) {
-        // Kalau gagal, jangan langsung error. Lanjut ke cara cadangan di bawah.
-      }
+      } catch (e) {}
 
-      // 2. Cara cadangan: ambil semua artikel, lalu cari yang ID-nya sama.
-      // Ini untuk server yang belum punya endpoint detail per ID.
       if (data is! Map) {
         final listResponse = await http
             .get(Uri.parse('$apiBaseUrl/api/artikel'))
@@ -68,7 +56,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             list = body;
           }
 
-          // Cari artikel yang ID-nya sama (bandingkan sebagai teks supaya aman).
           for (var item in list) {
             String idItem = (item['id'] ?? item['id_artikel']).toString();
             if (idItem == widget.postId.toString()) {
@@ -81,7 +68,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
       if (!mounted) return;
 
-      // 3. Simpan hasilnya.
       if (data is Map) {
         setState(() {
           artikel = Map<String, dynamic>.from(data);
@@ -100,8 +86,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // Tampilkan dialog "Hapus Artikel?" sebelum benar-benar menghapus.
-  // Polanya sama seperti konfirmasi pada umumnya.
   Future<void> tanyaHapus(dynamic id) async {
     if (lagiMenghapus) return;
 
@@ -133,7 +117,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  // Hapus artikel di server. Mirip deleteProduct() di latihan.
   Future<void> hapusArtikel(dynamic idRaw) async {
     if (lagiMenghapus) return;
 
@@ -154,7 +137,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Artikel berhasil dihapus')),
         );
-        // Kembali ke daftar sambil membawa kabar "berhasil hapus".
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -192,7 +174,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Kalau masih loading, tampilkan lingkaran putar.
     if (isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFFFF9F0),
@@ -202,7 +183,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       );
     }
 
-    // 2. Kalau data tidak ketemu, tampilkan pesan.
     if (artikel == null) {
       return Scaffold(
         backgroundColor: const Color(0xFFFFF9F0),
@@ -211,7 +191,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       );
     }
 
-    // 3. Siapkan data untuk ditampilkan.
     String gambarUrl = gambarArtikelUrl(
       artikel!['gambar_artikel'] ?? artikel!['gambar'] ?? artikel!['image'],
     );
@@ -231,8 +210,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         .toString();
     dynamic id = artikel!['id'] ?? artikel!['id_artikel'];
 
-    // Ambil tanggal saja (buang jamnya).
-    // Contoh: "2024-01-01T10:00:00" -> "2024-01-01"
     String tanggal = (artikel!['created_at'] ?? artikel!['updated_at'] ?? '')
         .toString()
         .split('T')
@@ -246,10 +223,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Bagian atas: foto besar + tombol back/edit/hapus.
             Stack(
               children: [
-                // Foto artikel.
                 SizedBox(
                   height: 420,
                   width: double.infinity,
@@ -279,7 +254,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                 ),
 
-                // Bayangan hitam supaya tombol putih terlihat jelas.
                 Container(
                   height: 420,
                   decoration: BoxDecoration(
@@ -287,7 +261,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        // Hitam transparan supaya tombol putih terlihat jelas.
                         Colors.black.withValues(alpha: 0.45),
                         Colors.transparent,
                         Colors.black.withValues(alpha: 0.25),
@@ -296,7 +269,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                   ),
                 ),
 
-                // Baris tombol: kembali, judul, edit, hapus.
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -315,7 +287,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           ),
                         ),
                         const Spacer(),
-                        // Tombol edit.
                         tombolBulat(Icons.edit, () {
                           if (lagiMenghapus) return;
                           Navigator.push(
@@ -325,14 +296,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                                   EditPostPage(artikel: artikel),
                             ),
                           ).then((hasil) {
-                            // Kalau habis edit, muat ulang detail.
                             if (hasil == true) {
                               getDetail();
                             }
                           });
                         }, warnaIkon: const Color(0xFFF28C28)),
                         const SizedBox(width: 8),
-                        // Tombol hapus (berubah jadi loading saat menghapus).
                         if (lagiMenghapus)
                           Container(
                             width: 38,
@@ -358,7 +327,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ],
             ),
 
-            // Kartu putih isi artikel, naik sedikit menutupi foto.
             Transform.translate(
               offset: const Offset(0, -28),
               child: Container(
@@ -371,7 +339,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nama penerbit + centang biru.
                     if (penerbit.isNotEmpty) ...[
                       Row(
                         children: [
@@ -398,7 +365,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       const SizedBox(height: 8),
                     ],
 
-                    // Judul.
                     Text(
                       judul,
                       style: const TextStyle(
@@ -411,7 +377,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Penulis + tanggal.
                     Text(
                       penulis,
                       style: const TextStyle(
@@ -429,7 +394,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                         ),
                       ),
 
-                    // Label kategori.
                     if (kategori.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Container(
@@ -452,7 +416,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                     ],
                     const SizedBox(height: 16),
 
-                    // Isi artikel.
                     Text(
                       isi,
                       style: const TextStyle(
@@ -471,7 +434,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  // Tombol lingkaran putih kecil (untuk back, edit, hapus).
   Widget tombolBulat(
     IconData ikon,
     VoidCallback diklik, {

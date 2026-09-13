@@ -8,9 +8,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../api_config.dart';
 
-// Halaman 2: Tambah Artikel.
-// Polanya mirip AddProductPage di latihan:
-// TextEditingController + http.post + isSaving.
 class AddPostPage extends StatefulWidget {
   const AddPostPage({super.key});
 
@@ -19,32 +16,26 @@ class AddPostPage extends StatefulWidget {
 }
 
 class _AddPostPageState extends State<AddPostPage> {
-  // 1. Kunci form untuk validasi (sama seperti formKey di latihan login).
   final formKey = GlobalKey<FormState>();
 
-  // 2. Controller untuk membaca isi ketikan user.
   final judulController = TextEditingController();
   final isiController = TextEditingController();
   final penulisController = TextEditingController();
 
-  // 3. Data kategori dari server.
   List<dynamic> daftarKategori = [];
   bool kategoriLoading = true;
   String? kategoriError;
   int? kategoriTerpilih;
 
-  // 4. Data penerbit dari server.
   List<dynamic> daftarPenerbit = [];
   bool penerbitLoading = true;
   String? penerbitError;
   int? penerbitTerpilih;
 
-  // 5. Gambar yang dipilih user + status simpan.
   XFile? gambarTerpilih;
   bool lagiMenyimpan = false;
   final ImagePicker picker = ImagePicker();
 
-  // Ambil daftar kategori dari server.
   Future<void> getKategori() async {
     setState(() {
       kategoriLoading = true;
@@ -94,7 +85,6 @@ class _AddPostPageState extends State<AddPostPage> {
     }
   }
 
-  // Ambil daftar penerbit. Caranya sama persis seperti getKategori.
   Future<void> getPenerbit() async {
     setState(() {
       penerbitLoading = true;
@@ -144,20 +134,16 @@ class _AddPostPageState extends State<AddPostPage> {
     }
   }
 
-  // Pilih gambar dari galeri HP.
   Future<void> pilihGambar() async {
-    // 1. Buka galeri.
     XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
     );
 
-    // 2. Kalau user batal, berhenti.
     if (image == null) {
       return;
     }
 
-    // 3. Cek ukuran maksimal 5MB.
     int ukuran = await image.length();
     if (ukuran > 5 * 1024 * 1024) {
       if (!mounted) return;
@@ -167,7 +153,6 @@ class _AddPostPageState extends State<AddPostPage> {
       return;
     }
 
-    // 4. Cek ekstensi yang boleh: jpg, jpeg, png, webp.
     String nama = image.name.toLowerCase();
     bool boleh =
         nama.endsWith('.jpg') ||
@@ -184,24 +169,19 @@ class _AddPostPageState extends State<AddPostPage> {
       return;
     }
 
-    // 5. Simpan gambarnya.
     setState(() {
       gambarTerpilih = image;
     });
   }
 
-  // Tampilkan pesan kecil di bawah layar.
   void tampilkanSnack(String pesan) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
   }
 
-  // Kirim artikel baru ke server.
   Future<void> tambahArtikel() async {
-    // Jangan kirim dua kali.
     if (lagiMenyimpan) return;
 
-    // 1. Validasi semua field dulu. Kalau ada yang kosong, berhenti.
     if (!formKey.currentState!.validate()) {
       return;
     }
@@ -219,7 +199,6 @@ class _AddPostPageState extends State<AddPostPage> {
       late http.Response response;
 
       if (gambarTerpilih == null) {
-        // 2a. Tanpa gambar: kirim JSON biasa (mirip addProduct di latihan).
         response = await http
             .post(
               url,
@@ -237,7 +216,6 @@ class _AddPostPageState extends State<AddPostPage> {
             )
             .timeout(const Duration(seconds: 20));
       } else {
-        // 2b. Dengan gambar: kirim multipart (form + file).
         var request = http.MultipartRequest('POST', url);
         request.headers['Accept'] = 'application/json';
         request.fields['judul_artikel'] = judul;
@@ -263,7 +241,6 @@ class _AddPostPageState extends State<AddPostPage> {
 
       if (!mounted) return;
 
-      // 3. Kalau berhasil (200/201), kembali ke daftar.
       if (response.statusCode == 200 || response.statusCode == 201) {
         tampilkanSnack('Artikel berhasil ditambahkan');
         Navigator.pop(context, true);
@@ -278,7 +255,6 @@ class _AddPostPageState extends State<AddPostPage> {
       tampilkanSnack('Error: $e');
     }
 
-    // 4. Matikan loading apa pun hasilnya.
     if (mounted) {
       setState(() {
         lagiMenyimpan = false;
@@ -289,21 +265,18 @@ class _AddPostPageState extends State<AddPostPage> {
   @override
   void initState() {
     super.initState();
-    // Ambil kategori dan penerbit saat halaman dibuka.
     getKategori();
     getPenerbit();
   }
 
   @override
   void dispose() {
-    // Buang controller supaya tidak bocor memori.
     judulController.dispose();
     isiController.dispose();
     penulisController.dispose();
     super.dispose();
   }
 
-  // Dekorasi input supaya sama semua: putih, sudut bulat.
   InputDecoration dekorasiInput(String label) {
     return InputDecoration(
       labelText: label,
@@ -313,8 +286,6 @@ class _AddPostPageState extends State<AddPostPage> {
     );
   }
 
-  // Buat daftar item dropdown kategori dari data server.
-  // Ditulis pakai for supaya mudah dibaca pemula.
   List<DropdownMenuItem<int>> buatItemKategori() {
     List<DropdownMenuItem<int>> hasil = [];
     for (var item in daftarKategori) {
@@ -332,7 +303,6 @@ class _AddPostPageState extends State<AddPostPage> {
     return hasil;
   }
 
-  // Sama seperti kategori, tapi untuk penerbit.
   List<DropdownMenuItem<int>> buatItemPenerbit() {
     List<DropdownMenuItem<int>> hasil = [];
     for (var item in daftarPenerbit) {
@@ -368,7 +338,6 @@ class _AddPostPageState extends State<AddPostPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Judul kecil di atas form.
               const Text(
                 'CicipYuk',
                 style: TextStyle(
@@ -389,7 +358,6 @@ class _AddPostPageState extends State<AddPostPage> {
               ),
               const SizedBox(height: 16),
 
-              // Input judul.
               TextFormField(
                 controller: judulController,
                 textInputAction: TextInputAction.next,
@@ -407,20 +375,16 @@ class _AddPostPageState extends State<AddPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Dropdown kategori.
               dropdownKategori(),
-              // Kalau gagal muat kategori, tampilkan error + tombol coba lagi.
               if (kategoriError != null)
                 barisError(kategoriError!, getKategori),
               const SizedBox(height: 12),
 
-              // Dropdown penerbit.
               dropdownPenerbit(),
               if (penerbitError != null)
                 barisError(penerbitError!, getPenerbit),
               const SizedBox(height: 12),
 
-              // Input penulis.
               TextFormField(
                 controller: penulisController,
                 textInputAction: TextInputAction.next,
@@ -439,7 +403,6 @@ class _AddPostPageState extends State<AddPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Input isi artikel.
               TextFormField(
                 controller: isiController,
                 maxLines: 5,
@@ -454,11 +417,9 @@ class _AddPostPageState extends State<AddPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Kotak pilih gambar.
               bagianGambar(),
               const SizedBox(height: 20),
 
-              // Tombol simpan.
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -490,7 +451,6 @@ class _AddPostPageState extends State<AddPostPage> {
     );
   }
 
-  // Dropdown kategori.
   Widget dropdownKategori() {
     return DropdownButtonFormField<int>(
       initialValue: kategoriTerpilih,
@@ -514,7 +474,6 @@ class _AddPostPageState extends State<AddPostPage> {
     );
   }
 
-  // Dropdown penerbit.
   Widget dropdownPenerbit() {
     return DropdownButtonFormField<int>(
       initialValue: penerbitTerpilih,
@@ -538,7 +497,6 @@ class _AddPostPageState extends State<AddPostPage> {
     );
   }
 
-  // Baris merah untuk error + tombol coba lagi.
   Widget barisError(String pesan, VoidCallback cobaLagi) {
     return Column(
       children: [
@@ -558,7 +516,6 @@ class _AddPostPageState extends State<AddPostPage> {
     );
   }
 
-  // Kotak untuk pilih / ganti / hapus gambar.
   Widget bagianGambar() {
     return Container(
       width: double.infinity,
@@ -569,7 +526,6 @@ class _AddPostPageState extends State<AddPostPage> {
       ),
       child: Column(
         children: [
-          // Pratinjau gambar.
           if (gambarTerpilih != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
@@ -595,7 +551,6 @@ class _AddPostPageState extends State<AddPostPage> {
               ),
             ),
           const SizedBox(height: 8),
-          // Tombol pilih gambar.
           OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
               foregroundColor: const Color(0xFF33251F),
@@ -612,7 +567,6 @@ class _AddPostPageState extends State<AddPostPage> {
             ),
             onPressed: pilihGambar,
           ),
-          // Tombol hapus gambar.
           if (gambarTerpilih != null)
             TextButton.icon(
               icon: const Icon(Icons.delete, color: Colors.red),

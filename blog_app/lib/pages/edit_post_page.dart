@@ -8,11 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../api_config.dart';
 
-// Halaman 4: Edit Artikel.
-// Mirip halaman Tambah, bedanya form sudah terisi data lama.
-// Polanya mirip EditProductPage di latihan.
 class EditPostPage extends StatefulWidget {
-  // Data artikel lama yang mau diedit.
   final dynamic artikel;
 
   const EditPostPage({super.key, this.artikel});
@@ -22,15 +18,12 @@ class EditPostPage extends StatefulWidget {
 }
 
 class _EditPostPageState extends State<EditPostPage> {
-  // 1. Kunci form untuk validasi.
   final formKey = GlobalKey<FormState>();
 
-  // 2. Controller untuk membaca ketikan user.
   final judulController = TextEditingController();
   final isiController = TextEditingController();
   final penulisController = TextEditingController();
 
-  // 3. Data kategori dan penerbit dari server.
   List<dynamic> daftarKategori = [];
   bool kategoriLoading = true;
   String? kategoriError;
@@ -41,12 +34,10 @@ class _EditPostPageState extends State<EditPostPage> {
   String? penerbitError;
   int? penerbitTerpilih;
 
-  // 4. Gambar baru (kalau user ganti) + status simpan.
   XFile? gambarBaru;
   bool lagiMenyimpan = false;
   final ImagePicker picker = ImagePicker();
 
-  // Ambil daftar kategori dari server.
   Future<void> getKategori() async {
     setState(() {
       kategoriLoading = true;
@@ -96,7 +87,6 @@ class _EditPostPageState extends State<EditPostPage> {
     }
   }
 
-  // Ambil daftar penerbit. Caranya sama persis seperti getKategori.
   Future<void> getPenerbit() async {
     setState(() {
       penerbitLoading = true;
@@ -146,7 +136,6 @@ class _EditPostPageState extends State<EditPostPage> {
     }
   }
 
-  // Pilih gambar baru dari galeri. Sama persis seperti di Tambah.
   Future<void> pilihGambar() async {
     XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
@@ -186,11 +175,9 @@ class _EditPostPageState extends State<EditPostPage> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
   }
 
-  // Kirim perubahan ke server.
   Future<void> updateArtikel() async {
     if (lagiMenyimpan) return;
 
-    // 1. Validasi dulu.
     if (!formKey.currentState!.validate()) {
       return;
     }
@@ -199,7 +186,6 @@ class _EditPostPageState extends State<EditPostPage> {
     String penulis = penulisController.text.trim();
     String isi = isiController.text.trim();
 
-    // 2. Ambil ID artikel lama.
     dynamic idRaw = widget.artikel['id'] ?? widget.artikel['id_artikel'];
     if (idRaw == null) {
       tampilkanSnack('ID artikel tidak ditemukan');
@@ -216,7 +202,6 @@ class _EditPostPageState extends State<EditPostPage> {
       late http.Response response;
 
       if (gambarBaru == null) {
-        // 3a. Tanpa gambar baru: kirim JSON biasa pakai PUT.
         response = await http
             .put(
               url,
@@ -234,7 +219,6 @@ class _EditPostPageState extends State<EditPostPage> {
             )
             .timeout(const Duration(seconds: 20));
       } else {
-        // 3b. Dengan gambar baru: kirim multipart pakai PUT.
         var request = http.MultipartRequest('PUT', url);
         request.headers['Accept'] = 'application/json';
         request.fields['judul_artikel'] = judul;
@@ -287,7 +271,6 @@ class _EditPostPageState extends State<EditPostPage> {
     getKategori();
     getPenerbit();
 
-    // Isi form dengan data lama supaya user tinggal mengubah.
     judulController.text =
         (widget.artikel['judul_artikel'] ?? widget.artikel['title'] ?? '')
             .toString();
@@ -300,7 +283,6 @@ class _EditPostPageState extends State<EditPostPage> {
                 '')
             .toString();
 
-    // Isi dropdown dengan ID lama.
     kategoriTerpilih = parseKategoriId(
       widget.artikel['id_kategori'] ?? widget.artikel['category_id'],
     );
@@ -317,7 +299,6 @@ class _EditPostPageState extends State<EditPostPage> {
     super.dispose();
   }
 
-  // Dekorasi input: putih, sudut bulat. Sama seperti di Tambah.
   InputDecoration dekorasiInput(String label) {
     return InputDecoration(
       labelText: label,
@@ -327,7 +308,6 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  // Buat item dropdown kategori pakai for supaya mudah dibaca.
   List<DropdownMenuItem<int>> buatItemKategori() {
     List<DropdownMenuItem<int>> hasil = [];
     for (var item in daftarKategori) {
@@ -345,7 +325,6 @@ class _EditPostPageState extends State<EditPostPage> {
     return hasil;
   }
 
-  // Buat item dropdown penerbit.
   List<DropdownMenuItem<int>> buatItemPenerbit() {
     List<DropdownMenuItem<int>> hasil = [];
     for (var item in daftarPenerbit) {
@@ -363,8 +342,6 @@ class _EditPostPageState extends State<EditPostPage> {
     return hasil;
   }
 
-  // Cek apakah ID lama masih ada di daftar server.
-  // Kalau tidak ada (misal dihapus admin), dropdown dikosongkan supaya tidak error.
   int? nilaiDropdownKategoriAman() {
     if (kategoriTerpilih == null) {
       return null;
@@ -391,7 +368,6 @@ class _EditPostPageState extends State<EditPostPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Nama file gambar lama (kalau ada).
     dynamic gambarLamaRaw =
         widget.artikel['gambar_artikel'] ??
         widget.artikel['gambar'] ??
@@ -437,7 +413,6 @@ class _EditPostPageState extends State<EditPostPage> {
               ),
               const SizedBox(height: 16),
 
-              // Input judul.
               TextFormField(
                 controller: judulController,
                 textInputAction: TextInputAction.next,
@@ -455,7 +430,6 @@ class _EditPostPageState extends State<EditPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Dropdown kategori.
               DropdownButtonFormField<int>(
                 initialValue: nilaiDropdownKategoriAman(),
                 isExpanded: true,
@@ -490,7 +464,6 @@ class _EditPostPageState extends State<EditPostPage> {
                 ),
               const SizedBox(height: 12),
 
-              // Dropdown penerbit.
               DropdownButtonFormField<int>(
                 initialValue: nilaiDropdownPenerbitAman(),
                 isExpanded: true,
@@ -525,7 +498,6 @@ class _EditPostPageState extends State<EditPostPage> {
                 ),
               const SizedBox(height: 12),
 
-              // Input penulis.
               TextFormField(
                 controller: penulisController,
                 textInputAction: TextInputAction.next,
@@ -544,7 +516,6 @@ class _EditPostPageState extends State<EditPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Input isi.
               TextFormField(
                 controller: isiController,
                 maxLines: 5,
@@ -559,11 +530,9 @@ class _EditPostPageState extends State<EditPostPage> {
               ),
               const SizedBox(height: 12),
 
-              // Kotak gambar: gambar baru > gambar lama > placeholder.
               bagianGambar(gambarLama),
               const SizedBox(height: 20),
 
-              // Tombol update.
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -601,7 +570,6 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  // Baris merah error + tombol coba lagi.
   Widget barisError(String pesan, VoidCallback cobaLagi) {
     return Column(
       children: [
@@ -621,7 +589,6 @@ class _EditPostPageState extends State<EditPostPage> {
     );
   }
 
-  // Kotak gambar untuk edit: ada 3 kemungkinan.
   Widget bagianGambar(String gambarLama) {
     return Container(
       width: double.infinity,
@@ -633,7 +600,6 @@ class _EditPostPageState extends State<EditPostPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 1. Kalau user baru pilih gambar, tampilkan gambar baru.
           if (gambarBaru != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -644,7 +610,6 @@ class _EditPostPageState extends State<EditPostPage> {
                 fit: BoxFit.cover,
               ),
             )
-          // 2. Kalau belum pilih baru tapi ada gambar lama, tampilkan gambar lama.
           else if (gambarLama.isNotEmpty)
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
@@ -677,7 +642,6 @@ class _EditPostPageState extends State<EditPostPage> {
                 },
               ),
             )
-          // 3. Kalau tidak ada gambar sama sekali, tampilkan placeholder.
           else
             Container(
               height: 120,
