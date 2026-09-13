@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'dart:convert';
@@ -15,7 +15,7 @@ class PostListScreen extends StatefulWidget {
 }
 
 class _PostListScreenState extends State<PostListScreen> {
-  List<dynamic> artikel = [];
+  final List<dynamic> artikel = [];
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -35,9 +35,9 @@ class _PostListScreenState extends State<PostListScreen> {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        var body = jsonDecode(response.body);
+        final body = jsonDecode(response.body);
         // handle 2 bentuk: langsung List atau {data: [...]}
-        List data;
+        final List data;
         if (body is Map && body['data'] != null) {
           data = body['data'];
         } else if (body is List) {
@@ -47,7 +47,9 @@ class _PostListScreenState extends State<PostListScreen> {
         }
         if (!mounted) return;
         setState(() {
-          artikel = data;
+          artikel
+            ..clear()
+            ..addAll(data);
           _isLoading = false;
         });
         if (data.isNotEmpty) {
@@ -114,21 +116,41 @@ class _PostListScreenState extends State<PostListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Text(
-                "CicipYuk",
-                style: TextStyle(
-                  color: Color(0xFFF28C28),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: Image.asset(
+                      'assets/logo-cicipyuk-clean.png',
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                      errorBuilder: (c, e, s) => const Icon(
+                        Icons.restaurant,
+                        size: 22,
+                        color: Color(0xFFF28C28),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'CicipYuk',
+                    style: TextStyle(
+                      color: Color(0xFFF28C28),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
             const Padding(
               padding: EdgeInsets.fromLTRB(20, 6, 20, 16),
               child: Text(
-                "Your Culinary\nInspiration Vault",
+                "Ruang Inspirasi\nKuliner Anda",
                 style: TextStyle(
                   color: Color(0xFF33251F),
                   fontSize: 32,
@@ -237,128 +259,133 @@ class _PostListScreenState extends State<PostListScreen> {
       itemCount: artikel.length,
       itemBuilder: (context, index) {
         final item = artikel[index];
-        final gambar = gambarArtikelUrl(
-          item['gambar_artikel'] ?? item['gambar'] ?? item['image'],
-        );
-        final judul = (item['judul_artikel'] ?? item['title'] ?? '-')
-            .toString();
-        final penerbit = _penerbit(item);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
+        return _buildArticleCard(item);
+      },
+    );
+  }
+
+  // Extract widget in-file (tanpa file baru): kartu artikel reusable.
+  Widget _buildArticleCard(dynamic item) {
+    final String gambar = gambarArtikelUrl(
+      item['gambar_artikel'] ?? item['gambar'] ?? item['image'],
+    );
+    final String judul = (item['judul_artikel'] ?? item['title'] ?? '-')
+        .toString();
+    final String penerbit = _penerbit(item);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(24),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => PostDetailScreen(
-                    postId: item['id'] ?? item['id_artikel'],
-                  ),
-                ),
-              ).then((value) => getArtikel());
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PostDetailScreen(
+                postId: item['id'] ?? item['id_artikel'],
+              ),
+            ),
+          ).then((value) => getArtikel());
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Baris atas: nama penerbit + ikon verified
+              Row(
                 children: [
-                  // Baris atas: nama penerbit + ikon verified
-                  Row(
-                    children: [
-                      if (penerbit.isNotEmpty) ...[
-                        Flexible(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  penerbit,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFF33251F),
-                                  ),
-                                ),
+                  if (penerbit.isNotEmpty) ...[
+                    Flexible(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              penerbit,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF33251F),
                               ),
-                              const SizedBox(width: 4),
-                              const Icon(
-                                Icons.verified,
-                                size: 14,
-                                color: Color(0xFF2D9CDB),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Judul apa adanya dari database
-                  Text(
-                    judul,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      height: 1.3,
-                      color: Color(0xFF33251F),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.verified,
+                            size: 14,
+                            color: Color(0xFF2D9CDB),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 190,
-                      child: gambar.isNotEmpty
-                          ? Image.network(
-                              gambar,
-                              width: double.infinity,
-                              height: 190,
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              errorBuilder: (c, e, s) {
-                                print('gagal load gambar $gambar: $e');
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(
-                                    Icons.image,
-                                    color: Colors.grey,
-                                    size: 40,
-                                  ),
-                                );
-                              },
-                            )
-                          : Container(
+                  ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              // Judul apa adanya dari database
+              Text(
+                judul,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                  color: Color(0xFF33251F),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(18),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 190,
+                  child: gambar.isNotEmpty
+                      ? Image.network(
+                          gambar,
+                          width: double.infinity,
+                          height: 190,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (c, e, s) {
+                            print('gagal load gambar $gambar: $e');
+                            return Container(
                               color: Colors.grey.shade200,
                               child: const Icon(
                                 Icons.image,
                                 color: Colors.grey,
                                 size: 40,
                               ),
-                            ),
-                    ),
-                  ),
-                ],
+                            );
+                          },
+                        )
+                      : Container(
+                          color: Colors.grey.shade200,
+                          child: const Icon(
+                            Icons.image,
+                            color: Colors.grey,
+                            size: 40,
+                          ),
+                        ),
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

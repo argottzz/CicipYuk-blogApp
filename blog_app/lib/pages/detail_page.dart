@@ -169,20 +169,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  String _pesanError(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map) {
-        final msg = decoded['message'];
-        if (msg is String && msg.isNotEmpty) return msg;
-      }
-      if (body.length > 300) return "${body.substring(0, 300)}...";
-      return body.isEmpty ? "respons kosong dari server" : body;
-    } catch (_) {
-      if (body.length > 300) return "${body.substring(0, 300)}...";
-      return body.isEmpty ? "respons kosong dari server" : body;
-    }
-  }
+  String _pesanError(String body) => pesanErrorBackend(body);
 
   @override
   void initState() {

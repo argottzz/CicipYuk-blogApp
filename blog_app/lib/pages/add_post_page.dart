@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -16,16 +15,19 @@ class AddPostPage extends StatefulWidget {
 }
 
 class _AddPostPageState extends State<AddPostPage> {
+  // Form + validator sesuai materi (Bab Input Form Widget).
+  final _formKey = GlobalKey<FormState>();
+
   final judulController = TextEditingController();
   final isiController = TextEditingController();
   final penulisController = TextEditingController();
 
-  List<dynamic> kategori = [];
+  final List<dynamic> kategori = [];
   bool _loadingKategori = true;
   String? _kategoriError;
   int? selectedKategori;
 
-  List<dynamic> penerbit = [];
+  final List<dynamic> penerbit = [];
   bool _loadingPenerbit = true;
   String? _penerbitError;
   int? selectedPenerbit;
@@ -34,66 +36,6 @@ class _AddPostPageState extends State<AddPostPage> {
   bool _isSubmitting = false;
   final ImagePicker _picker = ImagePicker();
 
-  int? _parseKategoriId(dynamic raw) {
-    if (raw is Map) {
-      raw = raw['id_kategori'] ?? raw['id'] ?? raw['idKategori'];
-    }
-    if (raw == null) return null;
-    if (raw is int) return raw;
-    return int.tryParse(raw.toString());
-  }
-
-  int? _parseKategoriIdFromItem(dynamic item) {
-    if (item is! Map) return null;
-    return _parseKategoriId(
-      item['id_kategori'] ?? item['id'] ?? item['idKategori'],
-    );
-  }
-
-  String _kategoriName(dynamic item) {
-    return (item['nama_kategori'] ?? item['name'] ?? '-').toString();
-  }
-
-  int? _parsePenerbitId(dynamic raw) {
-    if (raw is Map) {
-      raw = raw['id_penerbit'] ?? raw['id'] ?? raw['idPenerbit'];
-    }
-    if (raw == null) return null;
-    if (raw is int) return raw;
-    return int.tryParse(raw.toString());
-  }
-
-  int? _parsePenerbitIdFromItem(dynamic item) {
-    if (item is! Map) return null;
-    return _parsePenerbitId(
-      item['id_penerbit'] ?? item['id'] ?? item['idPenerbit'],
-    );
-  }
-
-  String _penerbitName(dynamic item) {
-    return (item['nama_penerbit'] ?? item['name'] ?? '-').toString();
-  }
-
-  /// Validasi form bersama (pola sama dengan EditPostPage).
-  /// Return pesan error, atau null jika valid.
-  String? _validateForm(String judul, String penulis, String isi) {
-    if (judul.isEmpty) return "Judul wajib diisi";
-    if (judul.length > 200) return "Judul maksimal 200 karakter";
-    if (selectedKategori == null) return "Wajib pilih kategori";
-    if (selectedPenerbit == null) return "Wajib pilih penerbit";
-    if (penulis.isEmpty) return "Penulis wajib diisi";
-    if (penulis.length > 100) return "Penulis maksimal 100 karakter";
-    if (isi.isEmpty) return "Isi artikel wajib diisi";
-    return null;
-  }
-
-  MediaType _mediaTypeFor(String filename) {
-    final name = filename.toLowerCase();
-    if (name.endsWith('.png')) return MediaType('image', 'png');
-    if (name.endsWith('.webp')) return MediaType('image', 'webp');
-    return MediaType('image', 'jpeg');
-  }
-
   Future<void> getKategori() async {
     setState(() {
       _loadingKategori = true;
@@ -101,12 +43,12 @@ class _AddPostPageState extends State<AddPostPage> {
     });
     try {
       final response = await http
-          .get(Uri.parse("$apiBaseUrl/api/kategori"))
+          .get(Uri.parse('$apiBaseUrl/api/kategori'))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        var body = jsonDecode(response.body);
-        List data;
+        final body = jsonDecode(response.body);
+        final List data;
         if (body is Map && body['data'] != null) {
           data = (body['data'] as List?) ?? [];
         } else if (body is List) {
@@ -116,27 +58,29 @@ class _AddPostPageState extends State<AddPostPage> {
         }
         if (!mounted) return;
         setState(() {
-          kategori = data;
+          kategori
+            ..clear()
+            ..addAll(data);
           _loadingKategori = false;
         });
       } else {
         if (!mounted) return;
         setState(() {
           _loadingKategori = false;
-          _kategoriError = "Gagal memuat kategori (${response.statusCode})";
+          _kategoriError = 'Gagal memuat kategori (${response.statusCode})';
         });
       }
     } on TimeoutException {
       if (!mounted) return;
       setState(() {
         _loadingKategori = false;
-        _kategoriError = "Request timeout - coba lagi";
+        _kategoriError = 'Request timeout - coba lagi';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingKategori = false;
-        _kategoriError = "Tidak bisa konek ke server";
+        _kategoriError = 'Tidak bisa konek ke server';
       });
     }
   }
@@ -148,12 +92,12 @@ class _AddPostPageState extends State<AddPostPage> {
     });
     try {
       final response = await http
-          .get(Uri.parse("$apiBaseUrl/api/penerbit"))
+          .get(Uri.parse('$apiBaseUrl/api/penerbit'))
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        var body = jsonDecode(response.body);
-        List data;
+        final body = jsonDecode(response.body);
+        final List data;
         if (body is Map && body['data'] != null) {
           data = (body['data'] as List?) ?? [];
         } else if (body is List) {
@@ -163,56 +107,57 @@ class _AddPostPageState extends State<AddPostPage> {
         }
         if (!mounted) return;
         setState(() {
-          penerbit = data;
+          penerbit
+            ..clear()
+            ..addAll(data);
           _loadingPenerbit = false;
         });
       } else {
         if (!mounted) return;
         setState(() {
           _loadingPenerbit = false;
-          _penerbitError = "Gagal memuat penerbit (${response.statusCode})";
+          _penerbitError = 'Gagal memuat penerbit (${response.statusCode})';
         });
       }
     } on TimeoutException {
       if (!mounted) return;
       setState(() {
         _loadingPenerbit = false;
-        _penerbitError = "Request timeout - coba lagi";
+        _penerbitError = 'Request timeout - coba lagi';
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingPenerbit = false;
-        _penerbitError = "Tidak bisa konek ke server";
+        _penerbitError = 'Tidak bisa konek ke server';
       });
     }
   }
 
   /// Pilih gambar dengan validasi ukuran (max 5MB) dan ekstensi.
-  /// Pola sama dengan EditPostPage.
   Future<void> pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 85,
     );
     if (image != null) {
-      final bytes = await image.length();
+      final int bytes = await image.length();
       if (bytes > 5 * 1024 * 1024) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Ukuran file maksimal 5MB")),
+          const SnackBar(content: Text('Ukuran file maksimal 5MB')),
         );
         return;
       }
-      final ext = image.name.toLowerCase();
-      if (!(ext.endsWith(".jpg") ||
-          ext.endsWith(".jpeg") ||
-          ext.endsWith(".png") ||
-          ext.endsWith(".webp"))) {
+      final String ext = image.name.toLowerCase();
+      if (!(ext.endsWith('.jpg') ||
+          ext.endsWith('.jpeg') ||
+          ext.endsWith('.png') ||
+          ext.endsWith('.webp'))) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Hanya jpg, jpeg, png, webp yang diperbolehkan"),
+            content: Text('Hanya jpg, jpeg, png, webp yang diperbolehkan'),
           ),
         );
         return;
@@ -228,24 +173,21 @@ class _AddPostPageState extends State<AddPostPage> {
 
   Future<void> tambahArtikel() async {
     if (_isSubmitting) return;
-    // Validasi manual saat Simpan saja, tidak ada teks merah inline.
-    final judul = judulController.text.trim();
-    final penulis = penulisController.text.trim();
-    final isi = isiController.text.trim();
-    final validationError = _validateForm(judul, penulis, isi);
-    if (validationError != null) {
-      _snack(validationError);
-      return;
-    }
+    // Validasi via Form (materi: formKey.currentState!.validate()).
+    // Validator inline di tiap field, jadi tidak ada teks merah sebelum Simpan.
+    if (!_formKey.currentState!.validate()) return;
+
+    final String judul = judulController.text.trim();
+    final String penulis = penulisController.text.trim();
+    final String isi = isiController.text.trim();
 
     setState(() => _isSubmitting = true);
     try {
-      final url = Uri.parse("$apiBaseUrl/api/artikel");
-      http.Response response;
+      final Uri url = Uri.parse('$apiBaseUrl/api/artikel');
+      late final http.Response response;
 
       if (pickedImage == null) {
         // Tanpa gambar: kirim JSON biasa.
-        // Backend Express wajib id_kategori + id_penerbit.
         response = await http
             .post(
               url,
@@ -263,7 +205,7 @@ class _AddPostPageState extends State<AddPostPage> {
             )
             .timeout(const Duration(seconds: 20));
       } else {
-        var request = http.MultipartRequest('POST', url);
+        final request = http.MultipartRequest('POST', url);
         request.headers['Accept'] = 'application/json';
         request.fields['judul_artikel'] = judul;
         request.fields['isi_artikel'] = isi;
@@ -276,11 +218,11 @@ class _AddPostPageState extends State<AddPostPage> {
             'gambar_artikel',
             pickedImage!.path,
             filename: pickedImage!.name,
-            contentType: _mediaTypeFor(pickedImage!.name),
+            contentType: mediaTypeForImage(pickedImage!.name),
           ),
         );
 
-        var streamed = await request.send().timeout(
+        final streamed = await request.send().timeout(
           const Duration(seconds: 30),
         );
         response = await http.Response.fromStream(streamed);
@@ -289,58 +231,29 @@ class _AddPostPageState extends State<AddPostPage> {
       if (!mounted) return;
       if (response.statusCode == 200 || response.statusCode == 201) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Artikel berhasil ditambahkan")),
+          const SnackBar(content: Text('Artikel berhasil ditambahkan')),
         );
         Navigator.pop(context, true);
       } else {
-        print("gagal tambah artikel: ${response.statusCode} ${response.body}");
+        print('gagal tambah artikel: ${response.statusCode} ${response.body}');
         _snack(
-          "Gagal tambah (${response.statusCode}): ${_pesanError(response.body)}",
+          'Gagal tambah (${response.statusCode}): ${pesanErrorBackend(response.body)}',
         );
       }
     } on TimeoutException {
-      print("timeout tambah artikel");
+      print('timeout tambah artikel');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Request timeout - coba lagi")),
+        const SnackBar(content: Text('Request timeout - coba lagi')),
       );
     } catch (e) {
-      print("error tambah: $e");
+      print('error tambah: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  /// Ambil pesan validasi backend (Laravel: {message, errors:{...}})
-  /// agar SnackBar mudah dibaca user.
-  String _pesanError(String body) {
-    try {
-      final decoded = jsonDecode(body);
-      if (decoded is Map) {
-        final errors = decoded['errors'];
-        if (errors is Map && errors.isNotEmpty) {
-          final parts = <String>[];
-          errors.forEach((key, value) {
-            if (value is List && value.isNotEmpty) {
-              parts.add("${value.first}");
-            } else {
-              parts.add("$key: $value");
-            }
-          });
-          return parts.join(", ");
-        }
-        final msg = decoded['message'];
-        if (msg is String && msg.isNotEmpty) return msg;
-      }
-      if (body.length > 300) return "${body.substring(0, 300)}...";
-      return body.isEmpty ? "respons kosong dari server" : body;
-    } catch (_) {
-      if (body.length > 300) return "${body.substring(0, 300)}...";
-      return body.isEmpty ? "respons kosong dari server" : body;
     }
   }
 
@@ -359,8 +272,7 @@ class _AddPostPageState extends State<AddPostPage> {
     super.dispose();
   }
 
-  // Fix label nabrak: beri ruang vertikal + pastikan label mengambang
-  // di atas input, tidak menumpuk dengan teks/hint.
+  // Extract widget in-file: dekorasi field disamakan Add/Edit.
   InputDecoration _field(String label) {
     return InputDecoration(
       labelText: label,
@@ -372,25 +284,25 @@ class _AddPostPageState extends State<AddPostPage> {
 
   @override
   Widget build(BuildContext context) {
-    final kategoriItems = kategori
+    final List<DropdownMenuItem<int>> kategoriItems = kategori
         .map((item) {
-          final id = _parseKategoriIdFromItem(item);
+          final int? id = parseKategoriIdFromItem(item);
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_kategoriName(item), overflow: TextOverflow.ellipsis),
+            child: Text(kategoriName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
         .toList();
 
-    final penerbitItems = penerbit
+    final List<DropdownMenuItem<int>> penerbitItems = penerbit
         .map((item) {
-          final id = _parsePenerbitIdFromItem(item);
+          final int? id = parsePenerbitIdFromItem(item);
           if (id == null) return null;
           return DropdownMenuItem<int>(
             value: id,
-            child: Text(_penerbitName(item), overflow: TextOverflow.ellipsis),
+            child: Text(penerbitName(item), overflow: TextOverflow.ellipsis),
           );
         })
         .whereType<DropdownMenuItem<int>>()
@@ -401,208 +313,245 @@ class _AddPostPageState extends State<AddPostPage> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         title: const Text(
-          "Tambah Artikel",
+          'Tambah Artikel',
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              "CicipYuk",
-              style: TextStyle(
-                color: Color(0xFFF28C28),
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              "New Post",
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -0.5,
-                color: Color(0xFF33251F),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: judulController,
-              textInputAction: TextInputAction.next,
-              decoration: _field("Judul Artikel"),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: selectedKategori,
-              isExpanded: true,
-              hint: Text(
-                _loadingKategori ? "Memuat kategori..." : "Pilih Kategori",
-              ),
-              decoration: _field("Kategori"),
-              items: kategoriItems,
-              onChanged: _loadingKategori
-                  ? null
-                  : (value) {
-                      setState(() => selectedKategori = value);
-                    },
-            ),
-            if (_kategoriError != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _kategoriError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: getKategori,
-                    child: const Text("Coba lagi"),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            DropdownButtonFormField<int>(
-              initialValue: selectedPenerbit,
-              isExpanded: true,
-              hint: Text(
-                _loadingPenerbit ? "Memuat penerbit..." : "Pilih Penerbit",
-              ),
-              decoration: _field("Penerbit"),
-              items: penerbitItems,
-              onChanged: _loadingPenerbit
-                  ? null
-                  : (value) {
-                      setState(() => selectedPenerbit = value);
-                    },
-            ),
-            if (_penerbitError != null) ...[
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _penerbitError!,
-                      style: const TextStyle(color: Colors.red, fontSize: 12),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: getPenerbit,
-                    child: const Text("Coba lagi"),
-                  ),
-                ],
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: penulisController,
-              textInputAction: TextInputAction.next,
-              textCapitalization: TextCapitalization.words,
-              decoration: _field("Penulis Artikel"),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: isiController,
-              maxLines: 5,
-              textInputAction: TextInputAction.newline,
-              decoration: _field("Isi Artikel"),
-            ),
-            const SizedBox(height: 12),
-            // Image picker
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Column(
-                children: [
-                  if (pickedImage != null)
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.file(
-                        File(pickedImage!.path),
-                        height: 180,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    )
-                  else
-                    Container(
-                      height: 120,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF9F0),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.image,
-                        size: 48,
-                        color: Color(0xFF806B5D),
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF33251F),
-                      side: const BorderSide(color: Color(0xFFF28C28)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    icon: const Icon(Icons.photo_library),
-                    label: Text(
-                      pickedImage == null
-                          ? "Pilih Gambar (jpg/png/webp, max 5MB)"
-                          : "Ganti Gambar",
-                    ),
-                    onPressed: pickImage,
-                  ),
-                  if (pickedImage != null)
-                    TextButton.icon(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      label: const Text(
-                        "Hapus Gambar",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      onPressed: () => setState(() => pickedImage = null),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFF28C28),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'CicipYuk',
+                style: TextStyle(
+                  color: Color(0xFFF28C28),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
                 ),
-                onPressed: _isSubmitting ? null : tambahArtikel,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text("Simpan"),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'New Post',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: -0.5,
+                  color: Color(0xFF33251F),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: judulController,
+                textInputAction: TextInputAction.next,
+                decoration: _field('Judul Artikel'),
+                validator: (value) {
+                  final v = (value ?? '').trim();
+                  if (v.isEmpty) return 'Judul wajib diisi';
+                  if (v.length > 200) return 'Judul maksimal 200 karakter';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildKategoriField(kategoriItems),
+              if (_kategoriError != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _kategoriError!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: getKategori,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              _buildPenerbitField(penerbitItems),
+              if (_penerbitError != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _penerbitError!,
+                        style: const TextStyle(color: Colors.red, fontSize: 12),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: getPenerbit,
+                      child: const Text('Coba lagi'),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: penulisController,
+                textInputAction: TextInputAction.next,
+                textCapitalization: TextCapitalization.words,
+                decoration: _field('Penulis Artikel'),
+                validator: (value) {
+                  final v = (value ?? '').trim();
+                  if (v.isEmpty) return 'Penulis wajib diisi';
+                  if (v.length > 100) return 'Penulis maksimal 100 karakter';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: isiController,
+                maxLines: 5,
+                textInputAction: TextInputAction.newline,
+                decoration: _field('Isi Artikel'),
+                validator: (value) {
+                  if ((value ?? '').trim().isEmpty) {
+                    return 'Isi artikel wajib diisi';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildImageSection(),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFF28C28),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                  onPressed: _isSubmitting ? null : tambahArtikel,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Simpan'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Extract widget in-file (tanpa file baru).
+  Widget _buildKategoriField(List<DropdownMenuItem<int>> kategoriItems) {
+    return DropdownButtonFormField<int>(
+      initialValue: selectedKategori,
+      isExpanded: true,
+      hint: Text(
+        _loadingKategori ? 'Memuat kategori...' : 'Pilih Kategori',
+      ),
+      decoration: _field('Kategori'),
+      items: kategoriItems,
+      validator: (value) =>
+          value == null ? 'Wajib pilih kategori' : null,
+      onChanged: _loadingKategori
+          ? null
+          : (value) {
+              setState(() => selectedKategori = value);
+            },
+    );
+  }
+
+  Widget _buildPenerbitField(List<DropdownMenuItem<int>> penerbitItems) {
+    return DropdownButtonFormField<int>(
+      initialValue: selectedPenerbit,
+      isExpanded: true,
+      hint: Text(
+        _loadingPenerbit ? 'Memuat penerbit...' : 'Pilih Penerbit',
+      ),
+      decoration: _field('Penerbit'),
+      items: penerbitItems,
+      validator: (value) =>
+          value == null ? 'Wajib pilih penerbit' : null,
+      onChanged: _loadingPenerbit
+          ? null
+          : (value) {
+              setState(() => selectedPenerbit = value);
+            },
+    );
+  }
+
+  Widget _buildImageSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          if (pickedImage != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.file(
+                File(pickedImage!.path),
+                height: 180,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            )
+          else
+            Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF9F0),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.image,
+                size: 48,
+                color: Color(0xFF806B5D),
               ),
             ),
-          ],
-        ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF33251F),
+              side: const BorderSide(color: Color(0xFFF28C28)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            icon: const Icon(Icons.photo_library),
+            label: Text(
+              pickedImage == null
+                  ? 'Pilih Gambar (jpg/png/webp, max 5MB)'
+                  : 'Ganti Gambar',
+            ),
+            onPressed: pickImage,
+          ),
+          if (pickedImage != null)
+            TextButton.icon(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              label: const Text(
+                'Hapus Gambar',
+                style: TextStyle(color: Colors.red),
+              ),
+              onPressed: () => setState(() => pickedImage = null),
+            ),
+        ],
       ),
     );
   }
