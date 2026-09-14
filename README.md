@@ -1,340 +1,300 @@
-# CicipYuk Blog App
+# CicipYuk Blog App - Dokumentasi Lengkap
 
-Aplikasi Flutter untuk membaca dan mengelola artikel kuliner melalui REST API.
-Aplikasi ini mendukung operasi CRUD (create, read, update, delete), kategori,
-penerbit, dan upload gambar artikel.
+Aplikasi Flutter untuk baca, tambah, edit, dan hapus artikel kuliner.
+Data TIDAK disimpan di HP, tapi di server (backend) via REST API.
 
-## Daftar Isi
+Alur besar:
 
-- [Fitur](#fitur)
-- [Teknologi](#teknologi)
-- [Struktur Project](#struktur-project)
-- [Cara Menjalankan](#cara-menjalankan)
-- [Konfigurasi API](#konfigurasi-api)
-- [Alur Aplikasi](#alur-aplikasi)
-- [Kontrak Backend](#kontrak-backend)
-- [Penjelasan Kode Penting](#penjelasan-kode-penting)
-- [Validasi dan Penanganan Error](#validasi-dan-penanganan-error)
-- [Troubleshooting](#troubleshooting)
+```text
+Aplikasi Flutter <--> REST API (HTTP) <--> Server <--> Database
+```
 
-## Fitur
+---
 
-- Menampilkan daftar artikel dari server.
-- Refresh daftar artikel dengan pull-to-refresh atau setelah operasi CRUD.
-- Menampilkan detail artikel.
-- Menambah artikel dengan judul, kategori, penerbit, penulis, isi, dan gambar opsional.
-- Mengedit artikel dan mengganti gambar.
-- Menghapus artikel setelah konfirmasi pengguna.
-- Memilih gambar dari galeri perangkat.
-- Validasi gambar: maksimal 5 MB dan format JPG, JPEG, PNG, atau WEBP.
-- Menampilkan placeholder apabila gambar kosong atau gagal dimuat.
-- Menangani respons API yang berbentuk list langsung maupun `{ "data": [...] }`.
-
-## Teknologi
-
-| Komponen         | Penggunaan                                         |
-| ---------------- | -------------------------------------------------- |
-| Flutter dan Dart | Framework dan bahasa aplikasi                      |
-| `http`           | Request GET, POST, PUT, dan DELETE                 |
-| `http_parser`    | Menentukan MIME type gambar multipart              |
-| `image_picker`   | Memilih gambar dari galeri                         |
-| `google_fonts`   | Font Plus Jakarta Sans                             |
-| `intl`           | Dukungan pemformatan tanggal/angka bila diperlukan |
-
-## Struktur Project
+## 1. Struktur Folder `lib/`
 
 ```text
 lib/
-|-- main.dart                 # Entry point dan tema aplikasi
-|-- api_config.dart           # Base URL dan helper normalisasi data API
-`-- pages/
-		|-- home_page.dart        # Daftar artikel dan navigasi utama
-		|-- add_post_page.dart    # Form tambah artikel
-		|-- detail_page.dart      # Detail, edit, dan hapus artikel
-		`-- edit_post_page.dart   # Form edit artikel
-
-assets/
-|-- logo-cicipyuk.jpg
-`-- logo-cicipyuk-clean.png
+├── main.dart               # Pintu masuk aplikasi
+├── api_config.dart         # Alamat server + helper
+└── pages/
+    ├── home_page.dart      # Halaman utama: daftar artikel
+    ├── detail_page.dart    # Halaman detail + tombol hapus
+    ├── add_post_page.dart  # Halaman form tambah
+    └── edit_post_page.dart # Halaman form edit
 ```
 
-## Cara Menjalankan
+| File | Isi | Tugas |
+|------|-----|-------|
+| `main.dart` | `BlogApp` | Jalan pertama kali, atur tema, font, dan halaman awal |
+| `api_config.dart` | `apiBaseUrl` + 7 fungsi bantuan | Simpan 1 alamat server agar tidak tulis ulang IP di semua file |
+| `home_page.dart` | `PostListScreen` | Ambil dan tampilkan semua artikel |
+| `detail_page.dart` | `PostDetailScreen` | Tampilkan 1 artikel, bisa hapus dan pindah ke edit |
+| `add_post_page.dart` | `AddPostPage` | Form tambah artikel baru |
+| `edit_post_page.dart` | `EditPostPage` | Form edit artikel lama |
 
-### Prasyarat
+---
 
-Pastikan perangkat berikut sudah tersedia:
+## 2. Penjelasan Tiap File
 
-- Flutter SDK dengan Dart SDK yang memenuhi constraint pada `pubspec.yaml`.
-- Android Studio/emulator, perangkat Android, atau target Flutter lainnya.
-- Backend REST API yang aktif dan dapat dijangkau dari perangkat.
-- Koneksi jaringan yang sama antara perangkat dan komputer server jika memakai IP lokal.
-
-### Instalasi
-
-Jalankan perintah berikut dari folder `blog_app`:
-
-```bash
-flutter pub get
-flutter devices
-flutter run --dart-define=API_URL=http://192.168.1.5:8000
-```
-
-`API_URL` bersifat opsional. Jika tidak diberikan, aplikasi memakai nilai default
-`http://192.168.1.5:8000` yang didefinisikan di `lib/api_config.dart`.
-
-Untuk menjalankan target tertentu, gunakan contoh berikut:
-
-```bash
-flutter run -d chrome --dart-define=API_URL=http://localhost:8000
-flutter run -d windows --dart-define=API_URL=http://localhost:8000
-flutter build apk --dart-define=API_URL=http://192.168.1.5:8000
-```
-
-Catatan: `localhost` dari Android emulator menunjuk ke emulator itu sendiri,
-bukan komputer host. Untuk server lokal pada host, biasanya gunakan
-`http://10.0.2.2:8000` pada Android emulator atau IP LAN komputer pada perangkat fisik.
-
-## Konfigurasi API
-
-Alamat API dibaca saat compile/run melalui `String.fromEnvironment`:
+### 2.1 `main.dart` - Pintu Masuk
 
 ```dart
-const String apiBaseUrl = String.fromEnvironment(
-	'API_URL',
-	defaultValue: 'http://192.168.1.5:8000',
-);
-```
-
-Dengan cara ini, alamat server tidak perlu ditulis ulang di setiap halaman.
-Perubahan alamat cukup dilakukan melalui `--dart-define` saat menjalankan atau
-build aplikasi.
-
-Android sudah memiliki izin internet dan mengizinkan koneksi HTTP lokal melalui
-`android/app/src/main/AndroidManifest.xml`. Untuk production, sebaiknya gunakan
-HTTPS dan tinjau kembali kebutuhan `usesCleartextTraffic`.
-
-## Alur Aplikasi
-
-```mermaid
-flowchart TD
-		A[main.dart] --> B[PostListScreen]
-		B -->|GET /api/artikel| C[Daftar artikel]
-		B -->|Tambah| D[AddPostPage]
-		B -->|Pilih artikel| E[PostDetailScreen]
-		D -->|GET kategori dan penerbit| F[Dropdown referensi]
-		D -->|POST artikel| C
-		E -->|GET artikel/id| G[Detail dari API]
-		G -->|Jika gagal| C
-		E -->|Edit| H[EditPostPage]
-		H -->|PUT artikel/id| C
-		E -->|Konfirmasi hapus| I[DELETE artikel/id]
-		I --> C
-```
-
-Alur setelah tambah, edit, atau hapus berhasil selalu kembali ke daftar dan
-memuat data ulang. Tujuannya agar tampilan tidak bergantung pada data lama di
-memori halaman sebelumnya.
-
-## Kontrak Backend
-
-### Endpoint
-
-| Method   | Endpoint            | Fungsi                                                    |
-| -------- | ------------------- | --------------------------------------------------------- |
-| `GET`    | `/api/artikel`      | Mengambil daftar artikel                                  |
-| `GET`    | `/api/artikel/{id}` | Mengambil satu artikel; aplikasi punya fallback ke daftar |
-| `POST`   | `/api/artikel`      | Menambah artikel                                          |
-| `PUT`    | `/api/artikel/{id}` | Mengubah artikel                                          |
-| `DELETE` | `/api/artikel/{id}` | Menghapus artikel                                         |
-| `GET`    | `/api/kategori`     | Mengambil pilihan kategori                                |
-| `GET`    | `/api/penerbit`     | Mengambil pilihan penerbit                                |
-
-### Field Artikel
-
-Field utama yang dikirim aplikasi:
-
-| Field             | Tipe    | Keterangan                                     |
-| ----------------- | ------- | ---------------------------------------------- |
-| `judul_artikel`   | String  | Wajib, maksimal 200 karakter                   |
-| `isi_artikel`     | String  | Wajib                                          |
-| `id_kategori`     | Integer | Wajib, dipilih dari endpoint kategori          |
-| `id_penerbit`     | Integer | Wajib, dipilih dari endpoint penerbit          |
-| `penulis_artikel` | String  | Wajib, maksimal 100 karakter                   |
-| `gambar_artikel`  | File    | Opsional, dikirim jika pengguna memilih gambar |
-
-Contoh respons daftar yang didukung:
-
-```json
-[
-  {
-    "id": 1,
-    "judul_artikel": "Resep Seblak",
-    "isi_artikel": "Isi artikel...",
-    "id_kategori": 2,
-    "id_penerbit": 3,
-    "nama_kategori": "Kuliner",
-    "nama_penerbit": "CicipYuk",
-    "gambar_artikel": "seblak.jpg"
-  }
-]
-```
-
-atau:
-
-```json
-{ "data": [ ... ] }
-```
-
-Backend juga dapat menggunakan beberapa nama alias yang ditangani aplikasi,
-misalnya `title` untuk judul, `content` untuk isi, `category_id` untuk ID
-kategori, serta `gambar` atau `image` untuk gambar.
-
-### Format Request Tambah dan Edit
-
-- Tanpa gambar: aplikasi mengirim JSON dengan `Content-Type: application/json`.
-- Dengan gambar: aplikasi mengirim `multipart/form-data` dan file pada field
-  `gambar_artikel`.
-- Tambah menggunakan `POST /api/artikel`.
-- Edit menggunakan `PUT /api/artikel/{id}`.
-- Respons sukses tambah/edit dianggap valid jika statusnya `200` atau `201`.
-- Respons sukses hapus dianggap valid jika statusnya `200` atau `204`.
-
-Backend sebaiknya mengembalikan error validasi dalam format Laravel berikut agar
-pesannya dapat ditampilkan dengan baik:
-
-```json
-{
-  "message": "The given data was invalid.",
-  "errors": {
-    "judul_artikel": ["Judul wajib diisi"]
-  }
+void main() {
+  runApp(const BlogApp());
 }
 ```
 
-## Penjelasan Kode Penting
+- `BlogApp` adalah `StatelessWidget` karena tidak punya data yang berubah. Isinya cuma tema.
+- Mengatur warna dasar `#FFF9F0`, warna utama `#F28C28`, font `Plus Jakarta Sans`.
+- `home: const PostListScreen()` artinya aplikasi langsung buka halaman daftar artikel.
 
-### `api_config.dart`
+### 2.2 `api_config.dart` - Otak Koneksi API
 
-File ini adalah lapisan helper bersama untuk hal-hal yang berkaitan dengan
-format data API:
+Ini file paling penting untuk soal "link API dari mana?".
 
-- `apiBaseUrl`: satu sumber alamat dasar backend.
-- `gambarArtikelUrl(gambar)`: mengubah nama file menjadi URL lengkap.
-  Fungsi ini juga menerima URL lengkap, path `/uploads/...`, atau nilai kosong.
-- `parseKategoriId` dan `parsePenerbitId`: menormalisasi ID yang dapat datang
-  sebagai integer, string, atau `Map` berisi `id`.
-- `kategoriName` dan `penerbitName`: membaca nama dari beberapa nama field.
-- `mediaTypeForImage`: menentukan MIME type `image/jpeg`, `image/png`, atau
-  `image/webp` untuk upload.
-- `pesanErrorBackend`: membaca `errors` atau `message` dari respons JSON agar
-  error server menjadi pesan yang dapat dibaca pengguna.
-
-Normalisasi ini penting karena widget tidak perlu mengulang logika pemeriksaan
-format respons di setiap tempat.
-
-### `home_page.dart`
-
-`PostListScreen` adalah `StatefulWidget` karena daftar artikel, status loading,
-dan pesan error berubah setelah request selesai.
-
-`getArtikel()` menjalankan pola berikut:
-
-1. Mengaktifkan loading dan menghapus error lama.
-2. Memanggil `GET /api/artikel` dengan timeout 15 detik.
-3. Mendukung respons berupa list langsung atau `body['data']`.
-4. Menyimpan hasil dengan `setState`.
-5. Menampilkan keadaan loading, error, kosong, atau daftar melalui `pilihTampilan()`.
-
-Pemeriksaan `mounted` setelah operasi asynchronous mencegah `setState` atau
-`SnackBar` dipanggil ketika halaman sudah ditutup.
-
-### `add_post_page.dart`
-
-Halaman tambah mengambil kategori dan penerbit saat `initState()`. Tombol simpan
-memakai `Form` dan `GlobalKey<FormState>` untuk memastikan field wajib valid.
-
-Alur pengiriman dibagi dua karena JSON tidak dapat membawa file:
-
-```text
-tanpa gambar -> http.post + jsonEncode
-dengan gambar -> MultipartRequest + MultipartFile.fromPath
+```dart
+const String apiBaseUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'http://10.2.8.213:8000',
+);
 ```
 
-Flag `lagiMenyimpan` mencegah request ganda ketika tombol ditekan berulang kali.
-Controller teks dibuang di `dispose()` agar tidak menimbulkan kebocoran resource.
+- `apiBaseUrl` = alamat dasar backend. Cuma ditulis 1x di sini.
+- Semua halaman lain tinggal pakai: `'$apiBaseUrl/api/artikel'`.
+- Kalau IP server ganti, tidak perlu edit 4 file, cukup ganti 1 nilai ini atau pakai `--dart-define` (lihat bab 4).
 
-### `detail_page.dart`
+Fungsi bantuan di file ini:
 
-Halaman detail memakai dua strategi pengambilan data:
+1. `gambarArtikelUrl(gambar)` - backend kadang kirim `ramen.jpg`, kadang `uploads/ramen.jpg`, kadang URL penuh. Fungsi ini ubah semuanya jadi URL yang bisa dibuka `Image.network`. Contoh:
+   - Input: `ramen.jpg` -> Output: `http://10.2.8.213:8000/uploads/ramen.jpg`
+   - Input: `http://.../ramen.jpg` -> dibiarkan apa adanya.
+2. `parseKategoriId()` / `parsePenerbitId()` - ID kadang datang sebagai `int`, `String "3"`, atau `Map {id:3}`. Fungsi ini samakan jadi `int`.
+3. `kategoriName()` / `penerbitName()` - ambil nama walaupun nama field beda (`nama_kategori` atau `name`).
+4. `mediaTypeForImage()` - tentukan `image/jpeg`, `image/png`, `image/webp` saat upload.
+5. `pesanErrorBackend(body)` - ubah error JSON Laravel `{message, errors}` jadi teks manusiawi untuk `SnackBar`.
 
-1. Mencoba `GET /api/artikel/{id}`.
-2. Jika endpoint detail gagal atau tidak tersedia, mengambil seluruh daftar lalu
-   mencari artikel dengan ID yang sama.
+### 2.3 `pages/home_page.dart` - Daftar Artikel
 
-ID dibandingkan sebagai teks agar nilai `1` dan `'1'` tetap dianggap sama.
-Penghapusan selalu diawali dialog konfirmasi dan hasil sukses dikirim kembali ke
-halaman daftar melalui `Navigator.pop(context, true)`.
+Widget: `PostListScreen` (`StatefulWidget` karena daftar bisa loading / error / berubah).
 
-### `edit_post_page.dart`
+Fungsi utama `getArtikel()`:
 
-Halaman edit mengisi controller dan dropdown dari artikel lama saat dibuka.
-Fungsi `nilaiDropdownKategoriAman()` dan `nilaiDropdownPenerbitAman()` memastikan
-ID lama hanya dipakai jika masih ada di data referensi terbaru. Ini mencegah
-`DropdownButtonFormField` menerima nilai yang tidak ada dalam daftar item.
+```dart
+final response = await http.get(Uri.parse('$apiBaseUrl/api/artikel'));
+dynamic body = jsonDecode(response.body);
+```
 
-Untuk gambar, urutan tampilan adalah gambar baru yang dipilih, gambar lama dari
-server, lalu placeholder. Jika pengguna tidak memilih gambar baru, request edit
-tetap dikirim sebagai JSON sehingga gambar lama tidak perlu di-upload ulang.
+Langkahnya:
+1. `isLoading = true`, tampilkan spinner.
+2. `GET /api/artikel`, tunggu max 15 detik.
+3. `jsonDecode` ubah teks JSON jadi `List` atau `Map`.
+4. Simpan ke `List<dynamic> artikel` pakai `setState`.
+5. `pilihTampilan()` pilih 1 dari 4: loading / error / kosong / daftar.
 
-## Validasi dan Penanganan Error
+Tiap kartu di-tap:
 
-- Request GET memiliki timeout 15 detik.
-- Request tambah/edit JSON memiliki timeout 20 detik.
-- Upload multipart memiliki timeout 30 detik.
-- Field wajib diperiksa sebelum request dikirim.
-- Gambar diperiksa berdasarkan ukuran file dan ekstensi.
-- Kegagalan koneksi, timeout, status HTTP non-sukses, dan error validasi backend
-  ditampilkan melalui `SnackBar` atau pesan pada form.
-- Gambar kosong atau gagal dimuat menggunakan placeholder, sehingga UI tetap
-  dapat dirender.
+```dart
+Navigator.push(context, MaterialPageRoute(
+  builder: (_) => PostDetailScreen(postId: id)
+)).then((_) => getArtikel()); // refresh saat kembali
+```
 
-## Troubleshooting
+### 2.4 `pages/detail_page.dart` - Detail + Hapus
 
-### `Tidak bisa konek ke server`
+Widget: `PostDetailScreen(postId)`.
 
-1. Pastikan backend sedang berjalan.
-2. Pastikan `API_URL` menunjuk ke IP dan port yang benar.
-3. Pastikan perangkat dan komputer server berada di jaringan yang sama.
-4. Periksa firewall dan izin koneksi HTTP.
-5. Pada Android emulator, coba `10.0.2.2` untuk mengakses localhost komputer.
+- `getDetail()` coba 2 cara:
+  1. `GET /api/artikel/{id}` -> kalau berhasil langsung pakai.
+  2. Kalau gagal, `GET /api/artikel` semua lalu cari yang ID-nya sama (fallback).
+- `hapusArtikel()`:
+  ```dart
+  await http.delete(Uri.parse('$apiBaseUrl/api/artikel/$id'));
+  ```
+  Sukses jika status `200` / `204`, lalu `Navigator.pop(context, true)`.
+- Tombol edit pindah ke `EditPostPage(artikel: artikel)`.
 
-### Daftar kosong padahal backend memiliki data
+### 2.5 `pages/add_post_page.dart` - Tambah
 
-- Periksa apakah respons endpoint berupa list atau memiliki key `data`.
-- Pastikan setiap item memiliki `id` atau `id_artikel`.
-- Pastikan endpoint yang dipakai sama dengan endpoint pada tabel kontrak.
+Widget: `AddPostPage`.
 
-### Gambar tidak tampil
+Saat dibuka (`initState`):
+- `GET /api/kategori` -> isi dropdown kategori.
+- `GET /api/penerbit` -> isi dropdown penerbit.
 
-- Pastikan nilai `gambar_artikel` adalah nama file, path yang benar, atau URL lengkap.
-- Pastikan file tersedia pada folder upload backend.
-- Pastikan `API_URL` dapat diakses dari perangkat, bukan hanya dari komputer server.
-- Periksa bahwa backend mengizinkan request HTTP jika belum menggunakan HTTPS.
+Saat tekan Simpan (`tambahArtikel()`):
+1. `formKey.currentState!.validate()` cek judul, penulis, isi, kategori, penerbit.
+2. Kalau tanpa gambar -> kirim JSON:
+   ```dart
+   http.post(url, headers: {'Content-Type':'application/json'},
+     body: jsonEncode({'judul_artikel': judul, ...}));
+   ```
+3. Kalau ada gambar -> kirim Multipart (karena JSON tidak bisa bawa file):
+   ```dart
+   var req = http.MultipartRequest('POST', url);
+   req.fields['judul_artikel'] = judul; // teks
+   req.files.add(await http.MultipartFile.fromPath('gambar_artikel', path)); // file
+   ```
+4. Sukses (`200`/`201`) -> `Navigator.pop(context, true)`.
 
-### Dropdown kategori atau penerbit kosong
+Gambar dicek dulu: max 5MB, hanya `jpg/jpeg/png/webp`.
 
-- Pastikan `GET /api/kategori` dan `GET /api/penerbit` dapat diakses.
-- Pastikan setiap item memiliki `id` atau `id_kategori`/`id_penerbit`.
-- Pastikan nama item menggunakan `nama_kategori`/`nama_penerbit` atau alias `name`.
+### 2.6 `pages/edit_post_page.dart` - Edit
 
-## Pemeriksaan Kode
+Widget: `EditPostPage(artikel)`. Hampir sama dengan tambah, bedanya:
 
-Gunakan perintah berikut sebelum commit:
+- Form langsung diisi data lama di `initState`:
+  ```dart
+  judulController.text = widget.artikel['judul_artikel'].toString();
+  ```
+- Kirim pakai `PUT /api/artikel/{id}`, bukan `POST`.
+- Kalau tidak ganti gambar, kirim JSON saja agar gambar lama tidak hilang.
+- Ada pengaman `nilaiDropdownKategoriAman()` agar dropdown tidak error kalau ID lama sudah dihapus di server.
+
+---
+
+## 3. Hubungan Antar File
+
+```text
+main.dart
+  |
+  v
+PostListScreen (home_page.dart) -- pakai apiBaseUrl + gambarArtikelUrl
+  |
+  +-- tombol + --> AddPostPage -- pakai apiBaseUrl + parseId + mediaType + pesanError
+  |                    | POST sukses
+  |                    v
+  |                 kembali + refresh daftar
+  |
+  +-- tap kartu --> PostDetailScreen(postId) -- pakai apiBaseUrl + gambarArtikelUrl
+                        |
+                        +-- tombol edit --> EditPostPage(artikel) -- PUT sukses --> kembali + refresh detail
+                        +-- tombol hapus --> DELETE sukses --> kembali + refresh daftar
+```
+
+Aturan yang dipakai semua halaman:
+- Tidak ada yang tulis IP manual. Semua `import '../api_config.dart'`.
+- Setelah tambah/edit/hapus selalu `pop(true)` + `getArtikel()` / `getDetail()` lagi. Jadi UI selalu data terbaru dari server, bukan data lama di memori.
+
+---
+
+## 4. Cara Mengambil Link API dari Backend (Paling Penting)
+
+### 4.1 Konsep Base URL + Endpoint
+
+Link lengkap = **Base URL + Endpoint**.
+
+Contoh di project ini:
+
+```dart
+'$apiBaseUrl/api/artikel' // = http://10.2.8.213:8000/api/artikel
+```
+
+| Method | Link Lengkap | Fungsi | Dipakai di |
+|--------|--------------|--------|------------|
+| GET | `http://10.2.8.213:8000/api/artikel` | Ambil semua artikel | `home_page.dart:32` |
+| GET | `http://10.2.8.213:8000/api/artikel/1` | Ambil 1 artikel id=1 | `detail_page.dart:31` |
+| POST | `http://10.2.8.213:8000/api/artikel` | Tambah baru | `add_post_page.dart:198` |
+| PUT | `http://10.2.8.213:8000/api/artikel/1` | Edit id=1 | `edit_post_page.dart:201` |
+| DELETE | `http://10.2.8.213:8000/api/artikel/1` | Hapus id=1 | `detail_page.dart:131` |
+| GET | `http://10.2.8.213:8000/api/kategori` | Daftar kategori | `add/edit:47` |
+| GET | `http://10.2.8.213:8000/api/penerbit` | Daftar penerbit | `add/edit:96` |
+| GET gambar | `http://10.2.8.213:8000/uploads/namafile.jpg` | Tampilkan gambar | via `gambarArtikelUrl()` |
+
+### 4.2 Dari Mana Dapat Base URL?
+
+1. Lihat backend (biasanya Laravel). Buka `routes/api.php`, pastikan ada route `artikel`, `kategori`, `penerbit`.
+2. Jalankan backend, contoh:
+   ```bash
+   php artisan serve --host=0.0.0.0 --port=8000
+   ```
+3. Cari IP komputer server: buka CMD -> `ipconfig` -> lihat IPv4, misal `10.2.8.213`.
+4. Base URL = `http://IP_TSB:8000`. Itulah yang diisi ke `apiBaseUrl`.
+
+### 4.3 Cara Ganti Base URL Tanpa Edit Kode
+
+Karena pakai `String.fromEnvironment('API_URL')`, ganti cukup saat `run` / `build`:
+
+```bash
+# dari folder blog_app/
+flutter pub get
+flutter run --dart-define=API_URL=http://10.2.8.213:8000
+
+# contoh lain:
+flutter run -d chrome --dart-define=API_URL=http://localhost:8000
+flutter run -d windows --dart-define=API_URL=http://localhost:8000
+flutter build apk --dart-define=API_URL=http://10.2.8.213:8000
+```
+
+Panduan pilih IP:
+- Emulator Android akses localhost PC -> `http://10.0.2.2:8000`
+- Chrome / Windows di PC yang sama -> `http://localhost:8000`
+- HP fisik + laptop satu WiFi -> `http://IP_LAN_LAPTOP:8000` (cek `ipconfig`)
+
+Kalau tidak pakai `--dart-define`, aplikasi pakai `defaultValue` di `api_config.dart:8`.
+
+### 4.4 Contoh Request - Response Asli
+
+Request tambah tanpa gambar:
+
+```http
+POST /api/artikel HTTP/1.1
+Content-Type: application/json
+
+{
+  "judul_artikel": "Seblak",
+  "isi_artikel": "Isi...",
+  "id_kategori": 2,
+  "id_penerbit": 3,
+  "penulis_artikel": "Budi"
+}
+```
+
+Response daftar (2 bentuk didukung kode):
+
+```json
+{ "data": [{ "id": 1, "judul_artikel": "Seblak", "gambar_artikel": "seblak.jpg" }] }
+```
+
+atau langsung:
+
+```json
+[{ "id": 1, "judul_artikel": "Seblak", "gambar_artikel": "seblak.jpg" }]
+```
+
+Itulah kenapa di semua `getArtikel/getKategori/getPenerbit` ada cek:
+
+```dart
+if (body is Map && body['data'] != null) dataBaru = body['data'];
+else if (body is List) dataBaru = body;
+```
+
+---
+
+## 5. Cara Menjalankan
+
+```bash
+cd blog_app
+flutter pub get
+flutter devices
+flutter run --dart-define=API_URL=http://10.2.8.213:8000
+```
+
+Syarat: backend sudah jalan, HP/emulator satu jaringan dengan server.
+
+Cek sebelum commit:
 
 ```bash
 flutter analyze
 flutter test
 ```
 
-`flutter analyze` memeriksa error dan lint Dart, sedangkan `flutter test`
-menjalankan pengujian yang ada di folder `test/`.
+---
+
+## 6. Troubleshooting Cepat
+
+- `Tidak bisa konek ke server` -> backend mati / salah IP / beda WiFi / firewall. Coba buka `http://IP:8000/api/artikel` di browser HP dulu.
+- `Request timeout` -> server lambat / jaringan putus. Ulangi.
+- Daftar kosong padahal server ada data -> cek JSON punya `id` / `id_artikel` dan key `data`.
+- Gambar tidak muncul -> pastikan file ada di `uploads/` server dan `API_URL` bisa dibuka dari HP, bukan cuma dari laptop.
+- Dropdown kosong -> `GET /api/kategori` dan `/api/penerbit` harus bisa dibuka, tiap item harus ada `id_kategori` / `id_penerbit` dan `nama_kategori` / `nama_penerbit`.

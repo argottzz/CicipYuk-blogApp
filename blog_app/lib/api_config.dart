@@ -4,7 +4,7 @@ import 'package:http_parser/http_parser.dart';
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://192.168.1.5:8000',
+  defaultValue: 'http://10.2.8.213:8000',
 );
 
 String gambarArtikelUrl(dynamic gambar) {
